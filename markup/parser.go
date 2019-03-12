@@ -1,12 +1,7 @@
 package markup
 
-type Attribute struct {
-	Name string
-	Value interface{}
-}
-
 type Tag struct {
-	Attributes map[string]Attribute
+	Attributes map[string]interface{}
 	Body string
 	Name string
 }
