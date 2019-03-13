@@ -25,6 +25,7 @@ const (
 	tokenEOF                         // end of file
 	tokenWhitespace                  // whitespace
 	tokenSpace                       // single space
+	tokenNewline                     // newline
 	tokenIdentity                    // identity for tags and attributes
 
 	tokenBool    // boolean literal
@@ -34,19 +35,7 @@ const (
 
 	tokenAttribute  // dash ('-') introducing an attribute declaration
 	tokenAssign     // equals sign ('=') introducing an attribute assignment
-
-	// Keywords
-	tokenKeyword             // used only to delimit the keywords
-	tokenTagMain             // main tag keyword
-	tokenAttrLeftDelimiter   // left delimiter attribute keyword
-	tokenAttrRightDelimiter  // right delimiter attribute keyword
 )
-
-var keywords = map[string]tokenType{
-	"aml":   tokenTagMain,
-	"start": tokenAttrLeftDelimiter,
-	"end":   tokenAttrRightDelimiter,
-}
 
 const eof = -1
 
@@ -81,10 +70,15 @@ type lexer struct {
 	input     string     // the string being scanned
 	pos       Pos        // current position in the input
 	start     Pos        // start position of current token
-	width     Pos        // width of last rune read from the input
+	size      Pos        // size of last rune read from the input
 	line      int        // 1+number of newlines seen
 	startLine int        // start line of current token
 	tokens    chan token // channel of scanned tokens
+}
+
+// value returns the string being scanned of current token
+func (lx *lexer) value() string {
+	return lx.input[lx.start:lx.pos]
 }
 
 // atEndOfFile checks whether there are any characters left to scan.
@@ -95,16 +89,16 @@ func (lx *lexer) atEndOfFile() bool {
 // next returns and does consume the next rune in the input.
 func (lx *lexer) next() rune {
 	if lx.atEndOfFile() {
-		lx.width = 0
+		lx.size = 0
 		return eof
 	}
-	rn, size := utf8.DecodeRuneInString(lx.input[lx.pos:])
-	lx.width = Pos(size)
-	lx.pos += lx.width
-	if rn == '\n' {
+	r, s := utf8.DecodeRuneInString(lx.input[lx.pos:])
+	lx.size = Pos(s)
+	lx.pos += lx.size
+	if r == '\n' {
 		lx.line++
 	}
-	return rn
+	return r
 }
 
 // peek returns but does not consume the next rune in the input.
@@ -118,25 +112,23 @@ func (lx *lexer) peek() rune {
 
 // backup steps back one rune. Can only be called once per call of next.
 func (lx *lexer) backup() {
-	lx.pos -= lx.width
+	lx.pos -= lx.size
 	// Correct newline count.
-	if lx.width == 1 && lx.input[lx.pos] == '\n' {
+	if lx.size == 1 && lx.input[lx.pos] == '\n' {
 		lx.line--
 	}
 }
 
 // emit passes an item back to the client.
 func (lx *lexer) emit(t tokenType) {
-	value := lx.input[lx.start:lx.pos]
-	lx.tokens <- token{t, lx.start, value, lx.startLine}
+	lx.tokens <- token{t, lx.start, lx.value(), lx.startLine}
 	lx.start = lx.pos
 	lx.startLine = lx.line
 }
 
 // ignore skips over the pending input before this point.
 func (lx *lexer) ignore() {
-	currentVal := lx.input[lx.start:lx.pos]
-	lx.line += strings.Count(currentVal, "\n") // todo: bug? all new lines should have been seen already
+	lx.line += strings.Count(lx.value(), "\n") // todo: bug? all new lines should have been seen already
 	lx.start = lx.pos
 	lx.startLine = lx.line
 }
@@ -164,22 +156,20 @@ func (lx *lexer) run() {
 		state = state(lx)
 	}
 	close(lx.tokens)
-
-	/*
-	lexInput ->
-
-	 */
 }
 
 // lexDocument scans until tag is found (alphabetical character).
 // can contain only whitespace and comments.
 func lexDocument(lx *lexer) stateFn {
-	switch rn := lx.next(); {
-	case isWhitespace(rn):
+	switch r := lx.next(); {
+	case r == eof:
+		lx.emit(tokenEOF)
+		return nil
+	case isWhitespace(r):
 		return lexWhitespace
-	case rn == '-':
+	case r == '-':
 		return lexComment
-	case unicode.IsLetter(rn):
+	case isLetter(r):
 		// todo: peek if doc tag
 		return lexTagIdentifier
 	}
@@ -188,7 +178,7 @@ func lexDocument(lx *lexer) stateFn {
 // lexWhitespace scans a sequence of whitespace characters and ignores them.
 // One whitespace has already been seen.
 func lexWhitespace(lx *lexer) stateFn {
-	for isWhitespace(lx.peek()) {
+	for isWhitespace(lx.peek()) { // todo: optimize without peeking, and backup instead
 		lx.next()
 	}
 	lx.ignore()
@@ -208,22 +198,68 @@ func lexComment(lx *lexer) stateFn {
 	return lexDocument
 }
 
+// lexTagIdentifier scans a tag name.
+// First letter has already been seen.
 func lexTagIdentifier(lx *lexer) stateFn {
-	// todo: can contain letters, numbers and dashes
-	// todo: can not end with dash
-
 	var r rune
 	for {
 		r = lx.next()
-		if !isAlphaNumeric(r) { // contains letter, numbers or dashes
+		if !isLetter(r) && !isDigit(r) && r != '-' {
 			lx.backup()
 			break
 		}
 	}
-
-	if !isSpace(r) {
-		return lx.errorf("invalid character %#U in tag name", r)
+	if !isWhitespace(r) || r != eof {
+		return lx.errorf("invalid character %#U after the tag name, expected whitespace instead", r)
 	}
+	v := lx.value()
+	if v[len(v)-1:] == "-" {
+		return lx.errorf("invalid character %#U at the end of the tag name, expected letter or number instead", r)
+	}
+	lx.emit(tokenIdentity)
+	return lexAfterTag
+}
+
+func lexAfterTag(lx *lexer) stateFn {
+	switch r := lx.next(); {
+	case isSpace(r):
+		return lexSpace
+	case r == '-':
+		return lexAttribute
+	case isLineTerminator(r):
+		lx.emit(tokenNewline)
+		return lexDocument
+	case r == eof:
+		return lexDocument
+	case isPunctuation(r):
+		return lexBodyLeftDelimiter
+	default:
+		return lx.errorf("unexpected character %#U", r)
+	}
+}
+
+func lexSpace(lx *lexer) stateFn {
+	for isSpace(lx.peek()) {
+		lx.next()
+	}
+	lx.emit(tokenSpace)
+	return lexAfterTag
+}
+
+func lexAttribute(lx *lexer) stateFn {
+	return lexAfterTag
+}
+
+func lexBodyLeftDelimiter(lx *lexer) stateFn {
+	return lexBody
+}
+
+func lexBody(lx *lexer) stateFn {
+	return lexBodyRightDelimiter
+}
+
+func lexBodyRightDelimiter(lx *lexer) stateFn {
+	return lexDocument
 }
 
 // isWhitespace checks whether r is a whitespace (space/newline/tab...) character.
@@ -241,7 +277,20 @@ func isLineTerminator(r rune) bool {
 	return r == '\r' || r == '\n'
 }
 
-// isAlphaNumeric reports whether r is an alphabetic, digit, or dash.
-func isAlphaNumeric(r rune) bool {
-	return r == '-' || unicode.IsLetter(r) || unicode.IsDigit(r)
+// isLetter checks whether r is an ASCII valid letter ([a-zA-Z]).
+func isLetter(r rune) bool {
+	return (r >= 65 && r <= 90) || (r >= 97 && r <= 122)
+}
+
+// isDigit checks whether r is an ASCII valid numeric digit ([0-9]).
+func isDigit(r rune) bool {
+	return r >= 48 && r <= 57
+}
+
+// isPunctuation checks whether r is an ASCII valid punctuation mark.
+func isPunctuation(r rune) bool {
+	return (r >= 33 && r <= 47) ||
+		(r >= 58 && r <= 64) ||
+		(r >= 91 && r <= 96) ||
+		(r >= 123 && r <= 126)
 }
