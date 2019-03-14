@@ -23,18 +23,15 @@ type tokenType int
 const (
 	tokenError      tokenType = iota // error occurred; value is text of error
 	tokenEOF                         // end of file
-	tokenWhitespace                  // whitespace
 	tokenSpace                       // single space
 	tokenNewline                     // newline
-	tokenIdentity                    // identity for tags and attributes
-
-	tokenBool    // boolean literal
-	tokenNumber  // number literal (including imaginary)
+	tokenIdentifier                  // identity for tags and attributes
+	tokenLeftDelimiter
+	tokenRightDelimiter
 	tokenString  // string literal
 	tokenBody    // raw tag body text between left and right delimiters
-
-	tokenAttribute  // dash ('-') introducing an attribute declaration
-	tokenAssign     // equals sign ('=') introducing an attribute assignment
+	tokenAttributeDeclaration  // dash ('-') introducing an attribute declaration
+	tokenAssignment            // equals sign ('=') introducing an attribute assignment
 )
 
 const eof = -1
@@ -53,8 +50,6 @@ func (t token) String() string {
 		return "EOF"
 	case t.typ == tokenError:
 		return t.val
-	case t.typ > tokenKeyword:
-		return fmt.Sprintf("<%s>", t.val)
 	case len(t.val) > 10:
 		return fmt.Sprintf("%.10q...", t.val)
 	}
@@ -201,6 +196,19 @@ func lexComment(lx *lexer) stateFn {
 // lexTagIdentifier scans a tag name.
 // First letter has already been seen.
 func lexTagIdentifier(lx *lexer) stateFn {
+	if !scanIdentifierTail(lx) {
+		return nil
+	}
+	if r := lx.peek(); !isWhitespace(r) || r != eof {
+		return lx.errorf("invalid character %#U after the tag name, expected whitespace instead", r)
+	}
+	lx.emit(tokenIdentifier)
+	return lexAfterTag
+}
+
+// scanIdentifierTail scans identifier right part which can contain letters, numbers and dashes.
+// First letter should already be scanned. Identifier can not end with dash.
+func scanIdentifierTail(lx *lexer) bool {
 	var r rune
 	for {
 		r = lx.next()
@@ -209,15 +217,12 @@ func lexTagIdentifier(lx *lexer) stateFn {
 			break
 		}
 	}
-	if !isWhitespace(r) || r != eof {
-		return lx.errorf("invalid character %#U after the tag name, expected whitespace instead", r)
-	}
 	v := lx.value()
 	if v[len(v)-1:] == "-" {
-		return lx.errorf("invalid character %#U at the end of the tag name, expected letter or number instead", r)
+		lx.errorf("invalid character %#U at the end of the identifier, expected letter or number instead", '-')
+		return false
 	}
-	lx.emit(tokenIdentity)
-	return lexAfterTag
+	return true
 }
 
 func lexAfterTag(lx *lexer) stateFn {
@@ -225,19 +230,22 @@ func lexAfterTag(lx *lexer) stateFn {
 	case isSpace(r):
 		return lexSpace
 	case r == '-':
-		return lexAttribute
+		lx.emit(tokenAttributeDeclaration)
+		return lexAttributeName
 	case isLineTerminator(r):
 		lx.emit(tokenNewline)
 		return lexDocument
 	case r == eof:
 		return lexDocument
-	case isPunctuation(r):
+	case !isWhitespace(r):
 		return lexBodyLeftDelimiter
 	default:
 		return lx.errorf("unexpected character %#U", r)
 	}
 }
 
+// lexSpace scans a sequence of space characters.
+// One space has already been seen.
 func lexSpace(lx *lexer) stateFn {
 	for isSpace(lx.peek()) {
 		lx.next()
@@ -246,11 +254,46 @@ func lexSpace(lx *lexer) stateFn {
 	return lexAfterTag
 }
 
-func lexAttribute(lx *lexer) stateFn {
+// lexAttribute scans an attribute name.
+func lexAttributeName(lx *lexer) stateFn {
+	if !scanIdentifierTail(lx) {
+		return nil
+	}
+	lx.emit(tokenIdentifier)
+	return lexAssignment
+}
+
+// lexAssignment scans an assignment character '='.
+func lexAssignment(lx *lexer) stateFn {
+	if r := lx.next(); r != '=' {
+		return lx.errorf("invalid character %#U after the attribute name, expected %#U instead", r, '=')
+	}
+	lx.emit(tokenAssignment)
+	return lexQuote
+}
+
+// lexQuote scans a quoted string.
+func lexQuote(lx *lexer) stateFn {
+	if r := lx.next(); r != '"' {
+		return lx.errorf("invalid character %#U after the attribute assignment, expected %#U instead", r, '"')
+	}
+	for lx.next() != '"' {
+	}
+	lx.emit(tokenString)
 	return lexAfterTag
 }
 
 func lexBodyLeftDelimiter(lx *lexer) stateFn {
+	for {
+		r := lx.next()
+		if isLineTerminator(r) {
+			break
+		}
+		if isWhitespace(r) || r == '-' {
+			return lx.errorf("invalid character %#U, expected any valid unicode character which is not whitespace or dash", r)
+		}
+	}
+	lx.emit(tokenLeftDelimiter)
 	return lexBody
 }
 
