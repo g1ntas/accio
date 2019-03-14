@@ -164,8 +164,7 @@ func lexDocument(lx *lexer) stateFn {
 		return lexWhitespace
 	case r == '-':
 		return lexComment
-	case isLetter(r):
-		// todo: peek if doc tag
+	case isLetter(r): // todo: tag must start on new line
 		return lexTagIdentifier
 	}
 }
@@ -196,7 +195,7 @@ func lexComment(lx *lexer) stateFn {
 // lexTagIdentifier scans a tag name.
 // First letter has already been seen.
 func lexTagIdentifier(lx *lexer) stateFn {
-	if !scanIdentifierTail(lx) {
+	if !scanIdentifier(lx) {
 		return nil
 	}
 	if r := lx.peek(); !isWhitespace(r) || r != eof {
@@ -208,7 +207,7 @@ func lexTagIdentifier(lx *lexer) stateFn {
 
 // scanIdentifierTail scans identifier right part which can contain letters, numbers and dashes.
 // First letter should already be scanned. Identifier can not end with dash.
-func scanIdentifierTail(lx *lexer) bool {
+func scanIdentifier(lx *lexer) bool {
 	var r rune
 	for {
 		r = lx.next()
@@ -238,7 +237,7 @@ func lexAfterTag(lx *lexer) stateFn {
 	case r == eof:
 		return lexDocument
 	case !isWhitespace(r):
-		return lexBodyLeftDelimiter
+		return lexBodyLeftDelimiter // todo: scan whole body without splitting delimiters - leave it to parser
 	default:
 		return lx.errorf("unexpected character %#U", r)
 	}
@@ -256,7 +255,7 @@ func lexSpace(lx *lexer) stateFn {
 
 // lexAttribute scans an attribute name.
 func lexAttributeName(lx *lexer) stateFn {
-	if !scanIdentifierTail(lx) {
+	if !scanIdentifier(lx) {
 		return nil
 	}
 	lx.emit(tokenIdentifier)
@@ -283,14 +282,20 @@ func lexQuote(lx *lexer) stateFn {
 	return lexAfterTag
 }
 
+// lexBodyLeftDelimiter scans body left delimiter which
+// can consist of any valid unicode characters except
+// whitespace and dashes '-'.
 func lexBodyLeftDelimiter(lx *lexer) stateFn {
+Loop:
 	for {
-		r := lx.next()
-		if isLineTerminator(r) {
-			break
-		}
-		if isWhitespace(r) || r == '-' {
+		switch r := lx.next(); {
+		case isLineTerminator(r):
+			lx.backup()
+			break Loop
+		case isWhitespace(r) || r == '-':
 			return lx.errorf("invalid character %#U, expected any valid unicode character which is not whitespace or dash", r)
+		case r == eof:
+			return lx.errorf("unclosed tag body")
 		}
 	}
 	lx.emit(tokenLeftDelimiter)
@@ -307,7 +312,7 @@ func lexBodyRightDelimiter(lx *lexer) stateFn {
 
 // isWhitespace checks whether r is a whitespace (space/newline/tab...) character.
 func isWhitespace(r rune) bool {
-	return unicode.IsSpace(r)
+	return unicode.IsSpace(r) || unicode.IsControl(r)
 }
 
 // isSpace checks whether r is a space character.
@@ -322,12 +327,12 @@ func isLineTerminator(r rune) bool {
 
 // isLetter checks whether r is an ASCII valid letter ([a-zA-Z]).
 func isLetter(r rune) bool {
-	return (r >= 65 && r <= 90) || (r >= 97 && r <= 122)
+	return r <= unicode.MaxASCII && unicode.IsLetter(r)
 }
 
 // isDigit checks whether r is an ASCII valid numeric digit ([0-9]).
 func isDigit(r rune) bool {
-	return r >= 48 && r <= 57
+	return r <= unicode.MaxASCII && unicode.IsNumber(r)
 }
 
 // isPunctuation checks whether r is an ASCII valid punctuation mark.
