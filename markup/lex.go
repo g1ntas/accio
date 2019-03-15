@@ -28,13 +28,19 @@ const (
 	tokenIdentifier                  // identity for tags and attributes
 	tokenLeftDelimiter
 	tokenRightDelimiter
-	tokenString  // string literal
-	tokenBody    // raw tag body text between left and right delimiters
+	tokenString                // string literal
+	tokenBody                  // raw tag body text between left and right delimiters
 	tokenAttributeDeclaration  // dash ('-') introducing an attribute declaration
 	tokenAssignment            // equals sign ('=') introducing an attribute assignment
 )
 
 const eof = -1
+
+// default body delimiters
+const (
+	leftDelimiter  = "<<"
+	rightDelimiter = ">>"
+)
 
 // todo: write doc
 type token struct {
@@ -61,14 +67,16 @@ type stateFn func(*lexer) stateFn
 
 // lexer holds the state of the scanner.
 type lexer struct {
-	name      string     // the name of the input; used only for errors
-	input     string     // the string being scanned
-	pos       Pos        // current position in the input
-	start     Pos        // start position of current token
-	size      Pos        // size of last rune read from the input
-	line      int        // 1+number of newlines seen
-	startLine int        // start line of current token
-	tokens    chan token // channel of scanned tokens
+	name           string     // the name of the input; used only for errors
+	input          string     // the string being scanned
+	pos            Pos        // current position in the input
+	start          Pos        // start position of current token
+	size           Pos        // size of last rune read from the input
+	line           int        // 1+number of newlines seen
+	startLine      int        // start line of current token
+	tokens         chan token // channel of scanned tokens
+	leftDelim  string     // left delimiter for the body of the tag
+	rightDelim string     // right delimiter for the body of the tag
 }
 
 // value returns the string being scanned of current token
@@ -136,10 +144,21 @@ func (lx *lexer) errorf(format string, args ...interface{}) stateFn {
 }
 
 // lex returns a new instance of lexer.
-func lex(input string) *lexer {
+func lex(name, input, left, right string) *lexer {
+	if left == "" {
+		left = leftDelimiter
+	}
+	if right == "" {
+		right = rightDelimiter
+	}
 	lx := &lexer{
-		input:  input,
-		tokens: make(chan token),
+		name:       name,
+		input:      input,
+		leftDelim:  left,
+		rightDelim: right,
+		tokens:     make(chan token),
+		line:       1,
+		startLine:  1,
 	}
 	go lx.run()
 	return lx
@@ -237,7 +256,7 @@ func lexAfterTag(lx *lexer) stateFn {
 	case r == eof:
 		return lexDocument
 	case !isWhitespace(r):
-		return lexBodyLeftDelimiter // todo: scan whole body without splitting delimiters - leave it to parser
+		return lexBodyLeftDelimiter
 	default:
 		return lx.errorf("unexpected character %#U", r)
 	}
@@ -303,7 +322,7 @@ Loop:
 }
 
 func lexBody(lx *lexer) stateFn {
-	return lexBodyRightDelimiter
+	return lexDocument
 }
 
 func lexBodyRightDelimiter(lx *lexer) stateFn {
