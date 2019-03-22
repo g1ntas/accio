@@ -26,12 +26,12 @@ const (
 	tokenSpace                       // single space
 	tokenNewline                     // newline
 	tokenIdentifier                  // identity for tags and attributes
-	tokenLeftDelimiter
-	tokenRightDelimiter
-	tokenString                // string literal
-	tokenBody                  // raw tag body text between left and right delimiters
-	tokenAttributeDeclaration  // dash ('-') introducing an attribute declaration
-	tokenAssignment            // equals sign ('=') introducing an attribute assignment
+	tokenLeftDelim
+	tokenRightDelim
+	tokenString       // string literal
+	tokenBody         // raw tag body text between left and right delimiters
+	tokenAttrDeclare  // dash ('-') introducing an attribute declaration
+	tokenAssign       // equals sign ('=') introducing an attribute assignment
 )
 
 const eof = -1
@@ -143,6 +143,24 @@ func (lx *lexer) errorf(format string, args ...interface{}) stateFn {
 	return nil
 }
 
+// nextToken returns the next item from the input.
+// Called by the parser, not in the lexing goroutine.
+func (lx *lexer) nextToken() token {
+	return <-lx.tokens
+}
+
+// atLeftDelim checks whether next token is left body delimiter
+func (lx *lexer) atLeftDelim() bool {
+	tail := lx.input[lx.pos:]
+	return strings.HasPrefix(tail, lx.leftDelim)
+}
+
+// atRightDelim checks whether next token is right body delimiter
+func (lx *lexer) atRightDelim() bool {
+	tail := lx.input[lx.pos:]
+	return strings.HasPrefix(tail, lx.rightDelim)
+}
+
 // lex returns a new instance of lexer.
 func lex(name, input, left, right string) *lexer {
 	if left == "" {
@@ -185,6 +203,8 @@ func lexDocument(lx *lexer) stateFn {
 		return lexComment
 	case isLetter(r): // todo: tag must start on new line
 		return lexTagIdentifier
+	default:
+		return lx.errorf("unexpected character %#U", r)
 	}
 }
 
@@ -248,14 +268,14 @@ func lexAfterTag(lx *lexer) stateFn {
 	case isSpace(r):
 		return lexSpace
 	case r == '-':
-		lx.emit(tokenAttributeDeclaration)
+		lx.emit(tokenAttrDeclare)
 		return lexAttributeName
 	case isLineTerminator(r):
 		lx.emit(tokenNewline)
 		return lexDocument
 	case r == eof:
 		return lexDocument
-	case !isWhitespace(r):
+	case !lx.atLeftDelim():
 		return lexBodyLeftDelimiter
 	default:
 		return lx.errorf("unexpected character %#U", r)
@@ -286,7 +306,7 @@ func lexAssignment(lx *lexer) stateFn {
 	if r := lx.next(); r != '=' {
 		return lx.errorf("invalid character %#U after the attribute name, expected %#U instead", r, '=')
 	}
-	lx.emit(tokenAssignment)
+	lx.emit(tokenAssign)
 	return lexQuote
 }
 
@@ -301,31 +321,36 @@ func lexQuote(lx *lexer) stateFn {
 	return lexAfterTag
 }
 
-// lexBodyLeftDelimiter scans body left delimiter which
-// can consist of any valid unicode characters except
-// whitespace and dashes '-'.
+// lexBodyLeftDelimiter scans left (opening) delimiter which is known
+// to be present. By default it's '<<', but can be changed in meta settings.
 func lexBodyLeftDelimiter(lx *lexer) stateFn {
-Loop:
-	for {
-		switch r := lx.next(); {
-		case isLineTerminator(r):
-			lx.backup()
-			break Loop
-		case isWhitespace(r) || r == '-':
-			return lx.errorf("invalid character %#U, expected any valid unicode character which is not whitespace or dash", r)
-		case r == eof:
-			return lx.errorf("unclosed tag body")
-		}
-	}
-	lx.emit(tokenLeftDelimiter)
+	lx.pos += Pos(len(lx.leftDelim))
+	lx.emit(tokenLeftDelim)
 	return lexBody
 }
 
+// lexBody scans any text until an right (closing) delimiter.
 func lexBody(lx *lexer) stateFn {
-	return lexDocument
+	for {
+		lx.next()
+		if lx.atRightDelim()  {
+			lx.backup()
+			break
+		}
+	}
+	lx.emit(tokenBody)
+	// todo: enforce newline for right delimiter when body is multiline
+	/*if lx.line == 0 {
+		lexInlineRightDelimiter
+	}*/
+	return lexBodyRightDelimiter
 }
 
+// lexBodyRightDelimiter scans right (closing) delimiter which is known
+// to be present. By default it's '>>', but can be changed in meta settings.
 func lexBodyRightDelimiter(lx *lexer) stateFn {
+	lx.pos += Pos(len(lx.leftDelim))
+	lx.emit(tokenRightDelim)
 	return lexDocument
 }
 
