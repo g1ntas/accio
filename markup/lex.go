@@ -151,13 +151,13 @@ func (lx *lexer) nextToken() token {
 
 // atLeftDelim checks whether next token is left body delimiter
 func (lx *lexer) atLeftDelim() bool {
-	tail := lx.input[lx.pos:]
+	tail := lx.input[lx.pos-1:]
 	return strings.HasPrefix(tail, lx.leftDelim)
 }
 
 // atRightDelim checks whether next token is right body delimiter
 func (lx *lexer) atRightDelim() bool {
-	tail := lx.input[lx.pos:]
+	tail := lx.input[lx.pos-1:]
 	return strings.HasPrefix(tail, lx.rightDelim)
 }
 
@@ -225,7 +225,10 @@ func lexComment(lx *lexer) stateFn {
 		return lx.errorf("unexpected character %#U", rn)
 	}
 	// consume everything on that line
-	for !isLineTerminator(lx.next()) {
+	for {
+		if r := lx.next(); isLineTerminator(r) || r == eof {
+			break
+		}
 	}
 	lx.ignore()
 	return lexDocument
@@ -236,9 +239,6 @@ func lexComment(lx *lexer) stateFn {
 func lexTagIdentifier(lx *lexer) stateFn {
 	if !scanIdentifier(lx) {
 		return nil
-	}
-	if r := lx.peek(); !isWhitespace(r) || r != eof {
-		return lx.errorf("invalid character %#U after the tag name, expected whitespace instead", r)
 	}
 	lx.emit(tokenIdentifier)
 	return lexAfterTag
@@ -275,7 +275,7 @@ func lexAfterTag(lx *lexer) stateFn {
 		return lexDocument
 	case r == eof:
 		return lexDocument
-	case !lx.atLeftDelim():
+	case lx.atLeftDelim():
 		return lexBodyLeftDelimiter
 	default:
 		return lx.errorf("unexpected character %#U", r)
@@ -285,9 +285,9 @@ func lexAfterTag(lx *lexer) stateFn {
 // lexSpace scans a sequence of space characters.
 // One space has already been seen.
 func lexSpace(lx *lexer) stateFn {
-	for isSpace(lx.peek()) {
-		lx.next()
+	for isSpace(lx.next()) {
 	}
+	lx.backup()
 	lx.emit(tokenSpace)
 	return lexAfterTag
 }
@@ -322,9 +322,10 @@ func lexQuote(lx *lexer) stateFn {
 }
 
 // lexBodyLeftDelimiter scans left (opening) delimiter which is known
-// to be present. By default it's '<<', but can be changed in meta settings.
+// to be present. First char is already scanned. By default it's '<<',
+// but can be changed with special tag.
 func lexBodyLeftDelimiter(lx *lexer) stateFn {
-	lx.pos += Pos(len(lx.leftDelim))
+	lx.pos += Pos(len(lx.leftDelim))-1
 	lx.emit(tokenLeftDelim)
 	return lexBody
 }

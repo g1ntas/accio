@@ -2,6 +2,7 @@ package markup
 
 import (
 	"fmt"
+	"testing"
 )
 
 var tokenName = map[tokenType]string {
@@ -32,7 +33,7 @@ type lexTest struct {
 	tokens []token
 }
 
-func mkItem(typ tokenType, text string) token {
+func mkToken(typ tokenType, text string) token {
 	return token{
 		typ: typ,
 		val: text,
@@ -40,11 +41,89 @@ func mkItem(typ tokenType, text string) token {
 }
 
 var (
-	tEOF = mkItem(tokenEOF, "")
+	tEOF = mkToken(tokenEOF, "")
+	tAssign = mkToken(tokenAssign, "=")
+	tAttrDeclare= mkToken(tokenAttrDeclare, "-")
+	tSingleSpace = mkToken(tokenSpace, " ")
+	tNewline = mkToken(tokenNewline, "\n")
+	tBodyLeft = mkToken(tokenLeftDelim, "<<")
+	tBodyRight = mkToken(tokenRightDelim, ">>")
 )
 
 var lexTests = []lexTest{
 	{"empty", "", []token{tEOF}},
+	{"whitespace", " \n\t", []token{tEOF}},
+	{"comments", "-- this is a comment", []token{tEOF}},
+	{"multiline comments", "-- line1\n--line2", []token{tEOF}},
+	{"empty tag", "tag", []token{
+		mkToken(tokenIdentifier, "tag"),
+		tEOF,
+	}},
+	{"tag with single attribute", `tag -attr="value"`, []token{
+		mkToken(tokenIdentifier, "tag"),
+		tSingleSpace,
+		tAttrDeclare,
+		mkToken(tokenIdentifier, "attr"),
+		tAssign,
+		mkToken(tokenString, `"value"`),
+		tEOF,
+	}},
+	{"tag with multiple attributes", `tag -attr1="1" -attr2="2"`, []token{
+		mkToken(tokenIdentifier, "tag"),
+		tSingleSpace,
+		tAttrDeclare,
+		mkToken(tokenIdentifier, "attr1"),
+		tAssign,
+		mkToken(tokenString, `"1"`),
+		tSingleSpace,
+		tAttrDeclare,
+		mkToken(tokenIdentifier, "attr2"),
+		tAssign,
+		mkToken(tokenString, `"2"`),
+		tEOF,
+	}},
+	{"tag with inline body", `tag << test >>`, []token{
+		mkToken(tokenIdentifier, "tag"),
+		tSingleSpace,
+		tBodyLeft,
+		mkToken(tokenBody, " test "),
+		tBodyRight,
+		tEOF,
+	}},
+	/*todo: trim whitespace at the start and end when body is multiline
+	{"tag with multiline body", "tag <<\n test \n>>", []token{
+		mkToken(tokenIdentifier, "tag"),
+		tSingleSpace,
+		tBodyLeft,
+		tNewline,
+		mkToken(tokenBody, " test "),
+		tNewline,
+		tBodyRight,
+		tEOF,
+	}},*/
+	{"tag with attribute and body", `tag -a="1" << test >>`, []token{
+		mkToken(tokenIdentifier, "tag"),
+		tSingleSpace,
+		tAttrDeclare,
+		mkToken(tokenIdentifier, "a"),
+		tAssign,
+		mkToken(tokenString, `"1"`),
+		tSingleSpace,
+		tBodyLeft,
+		mkToken(tokenBody, " test "),
+		tBodyRight,
+		tEOF,
+	}},
+	// todo: multiple tags
+	// todo: tag with empty attribute
+	// todo: tag and attr separated by mutliple spaces
+	// todo: attrs separated by mutliple spaces
+	// todo: attr and body separated by mutliple spaces
+	// todo: error: do not allow dash at the beginning of identifier (attr)
+	// todo: error: do not allow dash at the end of identifier
+	// todo: error: do not allow invalid characters in identifier (e.g. _)
+	// todo: error: tag must start on newline
+	// todo: error: do not allow invalid characters within input
 }
 
 // collect gathers the emitted tokens into a slice
@@ -60,8 +139,32 @@ func collect(t *lexTest, left, right string) (tokens []token) {
 	return
 }
 
-/*func TestLex(t *testing.T) {
-	for _, test := range lexTests {
-		tokens :=
+func equal(t1, t2 []token, checkPos bool) bool {
+	if len(t1) != len(t2) {
+		return false
 	}
-}*/
+	for i := range t1 {
+		if t1[i].typ != t2[i].typ {
+			return false
+		}
+		if t1[i].val != t2[i].val {
+			return false
+		}
+		if checkPos && t1[i].pos != t2[i].pos {
+			return false
+		}
+		if checkPos && t1[i].line != t2[i].line {
+			return false
+		}
+	}
+	return true
+}
+
+func TestLex(t *testing.T) {
+	for _, test := range lexTests {
+		tokens := collect(&test, "", "")
+		if !equal(tokens, test.tokens, false) {
+			t.Errorf("%s:\ngot\n\t%+v\nexpected\n\t%v", test.name, tokens, test.tokens)
+		}
+	}
+}
