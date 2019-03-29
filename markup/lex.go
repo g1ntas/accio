@@ -331,19 +331,44 @@ func lexBodyLeftDelimiter(lx *lexer) stateFn {
 }
 
 // lexBody scans any text until an right (closing) delimiter.
+// todo: add more details to docs
 func lexBody(lx *lexer) stateFn {
+	// todo: check if inline or multiline
+	for {
+		r := lx.next()
+		if isLineTerminator(r) {
+			lx.backup()
+			lx.ignore() // ignore all spaces between left delimiter and newline
+			lx.next()
+			lx.emit(tokenNewline)
+			return lexMultilineBody
+		}
+		if lx.atRightDelim() {
+			lx.backup()
+			lx.emit(tokenBody)
+			return lexBodyRightDelimiter
+		}
+		// todo: check eof
+	}
+}
+
+// lexInlineBody emits body token
+func lexMultilineBody(lx *lexer) stateFn {
+	orgDelim := lx.rightDelim
+	lx.rightDelim = "\n"+lx.rightDelim // in multiline body right delimiter takes effect only on new line
 	for {
 		lx.next()
-		if lx.atRightDelim()  {
+		if lx.atRightDelim() {
 			lx.backup()
 			break
 		}
+		// todo: check eof
 	}
 	lx.emit(tokenBody)
-	// todo: enforce newline for right delimiter when body is multiline
-	/*if lx.line == 0 {
-		lexInlineRightDelimiter
-	}*/
+
+	lx.next()
+	lx.emit(tokenNewline)
+	lx.rightDelim = orgDelim // reset delimiter
 	return lexBodyRightDelimiter
 }
 
@@ -378,12 +403,4 @@ func isLetter(r rune) bool {
 // isDigit checks whether r is an ASCII valid numeric digit ([0-9]).
 func isDigit(r rune) bool {
 	return r <= unicode.MaxASCII && unicode.IsNumber(r)
-}
-
-// isPunctuation checks whether r is an ASCII valid punctuation mark.
-func isPunctuation(r rune) bool {
-	return (r >= 33 && r <= 47) ||
-		(r >= 58 && r <= 64) ||
-		(r >= 91 && r <= 96) ||
-		(r >= 123 && r <= 126)
 }

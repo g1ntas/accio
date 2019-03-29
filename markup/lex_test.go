@@ -90,8 +90,7 @@ var lexTests = []lexTest{
 		tBodyRight,
 		tEOF,
 	}},
-	/*todo: trim whitespace at the start and end when body is multiline
-	{"tag with multiline body", "tag <<\n test \n>>", []token{
+	{"tag with multiline body", "tag << \t\n test \n>>", []token{
 		mkToken(tokenIdentifier, "tag"),
 		tSingleSpace,
 		tBodyLeft,
@@ -100,7 +99,7 @@ var lexTests = []lexTest{
 		tNewline,
 		tBodyRight,
 		tEOF,
-	}},*/
+	}},
 	{"tag with attribute and body", `tag -a="1" << test >>`, []token{
 		mkToken(tokenIdentifier, "tag"),
 		tSingleSpace,
@@ -119,11 +118,19 @@ var lexTests = []lexTest{
 	// todo: tag and attr separated by mutliple spaces
 	// todo: attrs separated by mutliple spaces
 	// todo: attr and body separated by mutliple spaces
+	// todo: left and right delimiters within multi body (but not on newline)
 	// todo: error: do not allow dash at the beginning of identifier (attr)
 	// todo: error: do not allow dash at the end of identifier
 	// todo: error: do not allow invalid characters in identifier (e.g. _)
 	// todo: error: tag must start on newline
 	// todo: error: do not allow invalid characters within input
+	// todo: error: unclosed quotes
+	// todo: error: attr without assignment
+	// todo: error: attr without value
+	// todo: error: attr unmatched delimiter
+	// todo: error: whitespace before multiline right delimiter
+	// todo: error: left delimiter on newline
+	// todo: error: attribute on newline
 }
 
 // collect gathers the emitted tokens into a slice
