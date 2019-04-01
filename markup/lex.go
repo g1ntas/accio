@@ -197,14 +197,19 @@ func lexDocument(lx *lexer) stateFn {
 	case r == eof:
 		lx.emit(tokenEOF)
 		return nil
+	case isLetter(r):
+		if lx.start != 0 {
+			if prev := rune(lx.input[lx.start-1]); !isLineTerminator(prev) {
+				return lx.errorf("misplaced character %#U, tag identifier must start on the newline", r)
+			}
+		}
+		return lexTagIdentifier
 	case isWhitespace(r):
 		return lexWhitespace
-	case r == '-':
+	case r == '#':
 		return lexComment
-	case isLetter(r): // todo: tag must start on new line
-		return lexTagIdentifier
 	default:
-		return lx.errorf("unexpected character %#U", r)
+		return lx.errorf("invalid character %#U", r)
 	}
 }
 
@@ -219,11 +224,9 @@ func lexWhitespace(lx *lexer) stateFn {
 }
 
 // lexComment scans a single-line comment and ignores it.
-// One dash symbol (part of comment marker) has already been seen.
+// Comment identifier is already scanned so comment is already
+// known to be present.
 func lexComment(lx *lexer) stateFn {
-	if rn := lx.next(); rn != '-' {
-		return lx.errorf("unexpected character %#U", rn)
-	}
 	// consume everything on that line
 	for {
 		if r := lx.next(); isLineTerminator(r) || r == eof {
@@ -239,6 +242,10 @@ func lexComment(lx *lexer) stateFn {
 func lexTagIdentifier(lx *lexer) stateFn {
 	if !scanIdentifier(lx) {
 		return nil
+	}
+	r := lx.peek()
+	if !isSpace(r) && !isLineTerminator(r) && r != eof {
+		return lx.errorf("invalid character %#U within tag identifier, space or newline expected", r)
 	}
 	lx.emit(tokenIdentifier)
 	return lexAfterTag
@@ -257,12 +264,13 @@ func scanIdentifier(lx *lexer) bool {
 	}
 	v := lx.value()
 	if v[len(v)-1:] == "-" {
-		lx.errorf("invalid character %#U at the end of the identifier, expected letter or number instead", '-')
+		lx.errorf("invalid character %#U at the end of the identifier", '-')
 		return false
 	}
 	return true
 }
 
+// todo: docs
 func lexAfterTag(lx *lexer) stateFn {
 	switch r := lx.next(); {
 	case isSpace(r):
@@ -278,7 +286,7 @@ func lexAfterTag(lx *lexer) stateFn {
 	case lx.atLeftDelim():
 		return lexBodyLeftDelimiter
 	default:
-		return lx.errorf("unexpected character %#U", r)
+		return lx.errorf("invalid character %#U", r)
 	}
 }
 
@@ -333,7 +341,6 @@ func lexBodyLeftDelimiter(lx *lexer) stateFn {
 // lexBody scans any text until an right (closing) delimiter.
 // todo: add more details to docs
 func lexBody(lx *lexer) stateFn {
-	// todo: check if inline or multiline
 	for {
 		r := lx.next()
 		if isLineTerminator(r) {
@@ -377,6 +384,31 @@ func lexMultilineBody(lx *lexer) stateFn {
 func lexBodyRightDelimiter(lx *lexer) stateFn {
 	lx.pos += Pos(len(lx.leftDelim))
 	lx.emit(tokenRightDelim)
+	return lexNewlineAfterRightDelimiter
+}
+
+// lexNewlineAfterRightDelimiter scans newline token and ignores all
+// space characters prior it. In case EOF is present, it successfully
+// will finish the scanning.
+func lexNewlineAfterRightDelimiter(lx *lexer) stateFn {
+	for {
+		r := lx.next()
+		if isSpace(r) {
+			continue
+		}
+		if isLineTerminator(r) {
+			lx.backup()
+			lx.ignore() // ignore spaces
+			break
+		}
+		if r == eof {
+			lx.emit(tokenEOF)
+			return nil
+		}
+		return lx.errorf("invalid character %#U after right body delimiter", r)
+	}
+	lx.next()
+	lx.emit(tokenNewline)
 	return lexDocument
 }
 

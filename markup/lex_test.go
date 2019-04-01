@@ -41,27 +41,31 @@ func mkToken(typ tokenType, text string) token {
 }
 
 var (
-	tEOF = mkToken(tokenEOF, "")
-	tAssign = mkToken(tokenAssign, "=")
-	tAttrDeclare= mkToken(tokenAttrDeclare, "-")
-	tSingleSpace = mkToken(tokenSpace, " ")
-	tNewline = mkToken(tokenNewline, "\n")
-	tBodyLeft = mkToken(tokenLeftDelim, "<<")
-	tBodyRight = mkToken(tokenRightDelim, ">>")
+	tEOF         = mkToken(tokenEOF, "")
+	tAssign      = mkToken(tokenAssign, "=")
+	tAttrDeclare = mkToken(tokenAttrDeclare, "-")
+	tSpace       = mkToken(tokenSpace, " ")
+	tNewline     = mkToken(tokenNewline, "\n")
+	tBodyLeft    = mkToken(tokenLeftDelim, "<<")
+	tBodyRight   = mkToken(tokenRightDelim, ">>")
 )
 
 var lexTests = []lexTest{
 	{"empty", "", []token{tEOF}},
 	{"whitespace", " \n\t", []token{tEOF}},
-	{"comments", "-- this is a comment", []token{tEOF}},
-	{"multiline comments", "-- line1\n--line2", []token{tEOF}},
+	{"comments", "# this is a comment", []token{tEOF}},
+	{"multiline comments", "# line1\n#line2", []token{tEOF}},
 	{"empty tag", "tag", []token{
 		mkToken(tokenIdentifier, "tag"),
 		tEOF,
 	}},
+	{"dash within tag", "tag-1", []token{
+		mkToken(tokenIdentifier, "tag-1"),
+		tEOF,
+	}},
 	{"tag with single attribute", `tag -attr="value"`, []token{
 		mkToken(tokenIdentifier, "tag"),
-		tSingleSpace,
+		tSpace,
 		tAttrDeclare,
 		mkToken(tokenIdentifier, "attr"),
 		tAssign,
@@ -70,21 +74,58 @@ var lexTests = []lexTest{
 	}},
 	{"tag with multiple attributes", `tag -attr1="1" -attr2="2"`, []token{
 		mkToken(tokenIdentifier, "tag"),
-		tSingleSpace,
+		tSpace,
 		tAttrDeclare,
 		mkToken(tokenIdentifier, "attr1"),
 		tAssign,
 		mkToken(tokenString, `"1"`),
-		tSingleSpace,
+		tSpace,
 		tAttrDeclare,
 		mkToken(tokenIdentifier, "attr2"),
 		tAssign,
 		mkToken(tokenString, `"2"`),
 		tEOF,
 	}},
+	{"tag with empty attribute value", `tag -attr=""`, []token{
+		mkToken(tokenIdentifier, "tag"),
+		tSpace,
+		tAttrDeclare,
+		mkToken(tokenIdentifier, "attr"),
+		tAssign,
+		mkToken(tokenString, `""`),
+		tEOF,
+	}},
+	{"tag and attribute separated by multiple spaces", "tag \t -attr=\"1\"", []token{
+		mkToken(tokenIdentifier, "tag"),
+		mkToken(tokenSpace, " \t "),
+		tAttrDeclare,
+		mkToken(tokenIdentifier, "attr"),
+		tAssign,
+		mkToken(tokenString, `"1"`),
+		tEOF,
+	}},
+	{"multiple attribute separated by multiple spaces", "tag -attr=\"1\" \t\t -attr=\"2\"", []token{
+		mkToken(tokenIdentifier, "tag"),
+		tSpace,
+		tAttrDeclare,
+		mkToken(tokenIdentifier, "attr"),
+		tAssign,
+		mkToken(tokenString, `"1"`),
+		mkToken(tokenSpace, " \t\t "),
+		tAttrDeclare,
+		mkToken(tokenIdentifier, "attr"),
+		tAssign,
+		mkToken(tokenString, `"2"`),
+		tEOF,
+	}},
+	{"spaces after empty tag", "tag \t\t", []token{
+		mkToken(tokenIdentifier, "tag"),
+		mkToken(tokenSpace, " \t\t"),
+		tEOF,
+	}},
 	{"tag with inline body", `tag << test >>`, []token{
 		mkToken(tokenIdentifier, "tag"),
-		tSingleSpace,
+		tSpace,
 		tBodyLeft,
 		mkToken(tokenBody, " test "),
 		tBodyRight,
@@ -92,7 +133,7 @@ var lexTests = []lexTest{
 	}},
 	{"tag with multiline body", "tag << \t\n test \n>>", []token{
 		mkToken(tokenIdentifier, "tag"),
-		tSingleSpace,
+		tSpace,
 		tBodyLeft,
 		tNewline,
 		mkToken(tokenBody, " test "),
@@ -102,32 +143,148 @@ var lexTests = []lexTest{
 	}},
 	{"tag with attribute and body", `tag -a="1" << test >>`, []token{
 		mkToken(tokenIdentifier, "tag"),
-		tSingleSpace,
+		tSpace,
 		tAttrDeclare,
 		mkToken(tokenIdentifier, "a"),
 		tAssign,
 		mkToken(tokenString, `"1"`),
-		tSingleSpace,
+		tSpace,
 		tBodyLeft,
 		mkToken(tokenBody, " test "),
 		tBodyRight,
 		tEOF,
 	}},
-	// todo: multiple tags
-	// todo: tag with empty attribute
-	// todo: tag and attr separated by mutliple spaces
-	// todo: attrs separated by mutliple spaces
-	// todo: attr and body separated by mutliple spaces
-	// todo: left and right delimiters within multi body (but not on newline)
+	{"attribute and body separated by multiple spaces", "tag -a=\"1\" \t\t << test >>", []token{
+		mkToken(tokenIdentifier, "tag"),
+		tSpace,
+		tAttrDeclare,
+		mkToken(tokenIdentifier, "a"),
+		tAssign,
+		mkToken(tokenString, `"1"`),
+		mkToken(tokenSpace, " \t\t "),
+		tBodyLeft,
+		mkToken(tokenBody, " test "),
+		tBodyRight,
+		tEOF,
+	}},
+	{"multiple empty tags", "tag1\ntag2", []token{
+		mkToken(tokenIdentifier, "tag1"),
+		tNewline,
+		mkToken(tokenIdentifier, "tag2"),
+		tEOF,
+	}},
+	{"multiple tags with attr", `tag1 -a="1"`+"\n"+`tag2`, []token{
+		mkToken(tokenIdentifier, "tag1"),
+		tSpace,
+		tAttrDeclare,
+		mkToken(tokenIdentifier, "a"),
+		tAssign,
+		mkToken(tokenString, `"1"`),
+		tNewline,
+		mkToken(tokenIdentifier, "tag2"),
+		tEOF,
+	}},
+	{"multiple tags with inline body", "tag1 <<body>>\ntag2", []token{
+		mkToken(tokenIdentifier, "tag1"),
+		tSpace,
+		tBodyLeft,
+		mkToken(tokenBody, "body"),
+		tBodyRight,
+		tNewline,
+		mkToken(tokenIdentifier, "tag2"),
+		tEOF,
+	}},
+	{"multiple tags with multiline body", "tag1 <<\nbody\n>>\ntag2", []token{
+		mkToken(tokenIdentifier, "tag1"),
+		tSpace,
+		tBodyLeft,
+		tNewline,
+		mkToken(tokenBody, "body"),
+		tNewline,
+		tBodyRight,
+		tNewline,
+		mkToken(tokenIdentifier, "tag2"),
+		tEOF,
+	}},
+	{"multiple tags with attr and body", `tag1 -a="1" <<body>>`+"\n"+`tag2`, []token{
+		mkToken(tokenIdentifier, "tag1"),
+		tSpace,
+		tAttrDeclare,
+		mkToken(tokenIdentifier, "a"),
+		tAssign,
+		mkToken(tokenString, `"1"`),
+		tSpace,
+		tBodyLeft,
+		mkToken(tokenBody, "body"),
+		tBodyRight,
+		tNewline,
+		mkToken(tokenIdentifier, "tag2"),
+		tEOF,
+	}},
+	{"spaces ignored after multiline body left delimiter", "tag << \t \ntest\n>>", []token{
+		mkToken(tokenIdentifier, "tag"),
+		tSpace,
+		tBodyLeft,
+		tNewline,
+		mkToken(tokenBody, "test"),
+		tNewline,
+		tBodyRight,
+		tEOF,
+	}},
+	{"spaces ignored after inline body right delimiter", "tag <<test>> \t \n", []token{
+		mkToken(tokenIdentifier, "tag"),
+		tSpace,
+		tBodyLeft,
+		mkToken(tokenBody, "test"),
+		tBodyRight,
+		tNewline,
+		tEOF,
+	}},
+	{"spaces ignored after multiline body right delimiter", "tag <<\ntest\n>> \t \n", []token{
+		mkToken(tokenIdentifier, "tag"),
+		tSpace,
+		tBodyLeft,
+		tNewline,
+		mkToken(tokenBody, "test"),
+		tNewline,
+		tBodyRight,
+		tNewline,
+		tEOF,
+	}},
+	{"delimiters within multiline body", "tag <<\n<<>>\n>>", []token{
+		mkToken(tokenIdentifier, "tag"),
+		tSpace,
+		tBodyLeft,
+		tNewline,
+		mkToken(tokenBody, "<<>>"),
+		tNewline,
+		tBodyRight,
+		tEOF,
+	}},
+	{"invalid character", "*", []token{
+		mkToken(tokenError, "invalid character U+002A '*'"),
+	}},
+	{"invalid character within tag identifier", "t*g", []token{
+		mkToken(tokenError, "invalid character U+002A '*' within tag identifier, space or newline expected"),
+	}},
+	{"dash at the start of the tag", "-tag", []token{
+		mkToken(tokenError, "invalid character U+002D '-'"),
+	}},
+	{"dash at the end of the tag", "tag-", []token{
+		mkToken(tokenError, "invalid character U+002D '-' at the end of the identifier"),
+	}},
+	{"tag must start on newline",  " tag", []token{
+		mkToken(tokenError, "misplaced character U+0074 't', tag identifier must start on the newline"),
+	}},
 	// todo: error: do not allow dash at the beginning of identifier (attr)
+	// todo: error: do not allow invalid characters in attr identifier (e.g. _)
 	// todo: error: do not allow dash at the end of identifier
-	// todo: error: do not allow invalid characters in identifier (e.g. _)
-	// todo: error: tag must start on newline
-	// todo: error: do not allow invalid characters within input
+	// todo: error: do not allow delimiters after tag without space
 	// todo: error: unclosed quotes
 	// todo: error: attr without assignment
 	// todo: error: attr without value
-	// todo: error: attr unmatched delimiter
+	// todo: error: unmatched body delimiter
+	// todo: error: invalid character after right body delimiter
 	// todo: error: whitespace before multiline right delimiter
 	// todo: error: left delimiter on newline
 	// todo: error: attribute on newline
