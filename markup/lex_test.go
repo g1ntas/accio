@@ -261,6 +261,8 @@ var lexTests = []lexTest{
 		tBodyRight,
 		tEOF,
 	}},
+
+	// errors
 	{"invalid character", "*", []token{
 		mkToken(tokenError, "invalid character U+002A '*'"),
 	}},
@@ -276,18 +278,95 @@ var lexTests = []lexTest{
 	{"tag must start on newline",  " tag", []token{
 		mkToken(tokenError, "misplaced character U+0074 't', tag identifier must start on the newline"),
 	}},
-	// todo: error: do not allow dash at the beginning of identifier (attr)
-	// todo: error: do not allow invalid characters in attr identifier (e.g. _)
-	// todo: error: do not allow dash at the end of identifier
-	// todo: error: do not allow delimiters after tag without space
-	// todo: error: unclosed quotes
-	// todo: error: attr without assignment
-	// todo: error: attr without value
-	// todo: error: unmatched body delimiter
-	// todo: error: invalid character after right body delimiter
-	// todo: error: whitespace before multiline right delimiter
-	// todo: error: left delimiter on newline
-	// todo: error: attribute on newline
+	{"invalid char at the start of attr name",  `tag -*="test"`, []token{
+		mkToken(tokenIdentifier, "tag"),
+		tSpace,
+		tAttrDeclare,
+		mkToken(tokenError, "invalid character U+002A '*' within attribute name, valid ascii letter expected"),
+	}},
+	{"dash at the start of attr name",  `tag --attr="test"`, []token{
+		mkToken(tokenIdentifier, "tag"),
+		tSpace,
+		tAttrDeclare,
+		mkToken(tokenError, "invalid character U+002D '-' within attribute name, valid ascii letter expected"),
+	}},
+	{"invalid char within attr name",  `tag -at*r="test"`, []token{
+		mkToken(tokenIdentifier, "tag"),
+		tSpace,
+		tAttrDeclare,
+		mkToken(tokenIdentifier, "at"),
+		mkToken(tokenError, "invalid character U+002A '*' after the attribute, expected U+003D '=' instead"),
+	}},
+	{"dash at the end of attr",  `tag -attr-="test"`, []token{
+		mkToken(tokenIdentifier, "tag"),
+		tSpace,
+		tAttrDeclare,
+		mkToken(tokenError, "invalid character U+002D '-' at the end of the identifier"),
+	}},
+	{"attr without assignment",  `tag -attr`, []token{
+		mkToken(tokenIdentifier, "tag"),
+		tSpace,
+		tAttrDeclare,
+		mkToken(tokenIdentifier, "attr"),
+		mkToken(tokenError, "invalid character U+FFFFFFFFFFFFFFFF after the attribute, expected U+003D '=' instead"),
+	}},
+	{"attr without value",  `tag -attr=`, []token{
+		mkToken(tokenIdentifier, "tag"),
+		tSpace,
+		tAttrDeclare,
+		mkToken(tokenIdentifier, "attr"),
+		tAssign,
+		mkToken(tokenError, "invalid character U+FFFFFFFFFFFFFFFF after the attribute assignment, expected U+0022 '\"' instead"),
+	}},
+	{"unclosed attr quotes",  `tag -attr="`, []token{
+		mkToken(tokenIdentifier, "tag"),
+		tSpace,
+		tAttrDeclare,
+		mkToken(tokenIdentifier, "attr"),
+		tAssign,
+		mkToken(tokenError, "unclosed attribute value, quote '\"' at the end expected"),
+	}},
+	{"delimiter after tag without space",  `tag<<>>`, []token{
+		mkToken(tokenError, "invalid character U+003C '<' within tag identifier, space or newline expected"),
+	}},
+	{"unmatched inline body delimiter",  `tag << >`, []token{
+		mkToken(tokenIdentifier, "tag"),
+		tSpace,
+		tBodyLeft,
+		mkToken(tokenError, "unclosed tag body, ending delimiter \">>\" expected at the end of body"),
+	}},
+	{"unmatched multiline body delimiter",  "tag <<\n\n>", []token{
+		mkToken(tokenIdentifier, "tag"),
+		tSpace,
+		tBodyLeft,
+		tNewline,
+		mkToken(tokenError, "unclosed tag body, ending delimiter \">>\" expected on newline at the end of the body"),
+	}},
+	{"invalid char after body right delimiter",  "tag <<>>>", []token{
+		mkToken(tokenIdentifier, "tag"),
+		tSpace,
+		tBodyLeft,
+		mkToken(tokenBody, ""),
+		tBodyRight,
+		mkToken(tokenError, "invalid character U+003E '>' after right body delimiter"),
+	}},
+	{"whitespace before multiline right delimiter",  "tag <<\n\n\t>>", []token{
+		mkToken(tokenIdentifier, "tag"),
+		tSpace,
+		tBodyLeft,
+		tNewline,
+		mkToken(tokenError, "unclosed tag body, ending delimiter \">>\" expected on newline at the end of the body"),
+	}},
+	{"left delimiter on newline",  "tag\n<<", []token{
+		mkToken(tokenIdentifier, "tag"),
+		tNewline,
+		mkToken(tokenError, "invalid character U+003C '<'"),
+	}},
+	{"attr on newline",  "tag\n-attr", []token{
+		mkToken(tokenIdentifier, "tag"),
+		tNewline,
+		mkToken(tokenError, "invalid character U+002D '-'"),
+	}},
 }
 
 // collect gathers the emitted tokens into a slice

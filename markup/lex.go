@@ -263,7 +263,7 @@ func scanIdentifier(lx *lexer) bool {
 		}
 	}
 	v := lx.value()
-	if v[len(v)-1:] == "-" {
+	if len(v) > 0 && v[len(v)-1:] == "-" {
 		lx.errorf("invalid character %#U at the end of the identifier", '-')
 		return false
 	}
@@ -302,6 +302,9 @@ func lexSpace(lx *lexer) stateFn {
 
 // lexAttribute scans an attribute name.
 func lexAttributeName(lx *lexer) stateFn {
+	if r := lx.next(); !isLetter(r) {
+		return lx.errorf("invalid character %#U within attribute name, valid ascii letter expected", r)
+	}
 	if !scanIdentifier(lx) {
 		return nil
 	}
@@ -312,7 +315,7 @@ func lexAttributeName(lx *lexer) stateFn {
 // lexAssignment scans an assignment character '='.
 func lexAssignment(lx *lexer) stateFn {
 	if r := lx.next(); r != '=' {
-		return lx.errorf("invalid character %#U after the attribute name, expected %#U instead", r, '=')
+		return lx.errorf("invalid character %#U after the attribute, expected %#U instead", r, '=')
 	}
 	lx.emit(tokenAssign)
 	return lexQuote
@@ -323,7 +326,14 @@ func lexQuote(lx *lexer) stateFn {
 	if r := lx.next(); r != '"' {
 		return lx.errorf("invalid character %#U after the attribute assignment, expected %#U instead", r, '"')
 	}
-	for lx.next() != '"' {
+Loop:
+	for {
+		switch lx.next(){
+		case '"':
+			break Loop
+		case eof:
+			return lx.errorf("unclosed attribute value, quote '\"' at the end expected")
+		}
 	}
 	lx.emit(tokenString)
 	return lexAfterTag
@@ -342,20 +352,20 @@ func lexBodyLeftDelimiter(lx *lexer) stateFn {
 // todo: add more details to docs
 func lexBody(lx *lexer) stateFn {
 	for {
-		r := lx.next()
-		if isLineTerminator(r) {
+		switch r := lx.next(); {
+		case isLineTerminator(r):
 			lx.backup()
 			lx.ignore() // ignore all spaces between left delimiter and newline
 			lx.next()
 			lx.emit(tokenNewline)
 			return lexMultilineBody
-		}
-		if lx.atRightDelim() {
+		case lx.atRightDelim():
 			lx.backup()
 			lx.emit(tokenBody)
 			return lexBodyRightDelimiter
+		case r == eof:
+			return lx.errorf("unclosed tag body, ending delimiter \"%s\" expected at the end of body", lx.rightDelim)
 		}
-		// todo: check eof
 	}
 }
 
@@ -364,12 +374,14 @@ func lexMultilineBody(lx *lexer) stateFn {
 	orgDelim := lx.rightDelim
 	lx.rightDelim = "\n"+lx.rightDelim // in multiline body right delimiter takes effect only on new line
 	for {
-		lx.next()
+		r := lx.next()
 		if lx.atRightDelim() {
 			lx.backup()
 			break
 		}
-		// todo: check eof
+		if r == eof {
+			return lx.errorf("unclosed tag body, ending delimiter \"%s\" expected on newline at the end of the body", orgDelim)
+		}
 	}
 	lx.emit(tokenBody)
 
