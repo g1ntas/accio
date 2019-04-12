@@ -449,6 +449,9 @@ var lexDelimTests = []lexTest{
 		tCustomBodyRight,
 		tEOF,
 	}},
+	// todo: test unicode delimiters
+	// todo: test single char delimiters
+	// todo: test single char left and multi char right delimiters
 }
 
 var (
