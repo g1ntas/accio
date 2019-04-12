@@ -411,3 +411,106 @@ func TestLex(t *testing.T) {
 		}
 	}
 }
+
+var lexDelimTests = []lexTest{
+	{"tag with inline body", `tag {{test}`, []token{
+		mkToken(tokenIdentifier, "tag"),
+		tSpace,
+		tCustomBodyLeft,
+		mkToken(tokenBody, "test"),
+		tCustomBodyRight,
+		tEOF,
+	}},
+	{"tag with empty inline body", `tag {{}`, []token{
+		mkToken(tokenIdentifier, "tag"),
+		tSpace,
+		tCustomBodyLeft,
+		mkToken(tokenBody, ""),
+		tCustomBodyRight,
+		tEOF,
+	}},
+	{"tag with multiline body", "tag {{ \t\ntest\n}", []token{
+		mkToken(tokenIdentifier, "tag"),
+		tSpace,
+		tCustomBodyLeft,
+		tNewline,
+		mkToken(tokenBody, "test"),
+		tNewline,
+		tCustomBodyRight,
+		tEOF,
+	}},
+	{"tag with empty multiline body", "tag {{ \t\n\n}", []token{
+		mkToken(tokenIdentifier, "tag"),
+		tSpace,
+		tCustomBodyLeft,
+		tNewline,
+		mkToken(tokenBody, ""),
+		tNewline,
+		tCustomBodyRight,
+		tEOF,
+	}},
+}
+
+var (
+	tCustomBodyLeft = mkToken(tokenLeftDelim, "{{")
+	tCustomBodyRight = mkToken(tokenRightDelim, "}")
+)
+
+
+// Test bodies with different delimiters.
+func TestDelims(t *testing.T) {
+	for _, test := range lexDelimTests {
+		tokens := collect(&test, "{{", "}")
+		if !equal(tokens, test.tokens, false) {
+			t.Errorf("%s:\ngot\n\t%+v\nexpected\n\t%v", test.name, tokens, test.tokens)
+		}
+	}
+}
+
+var lexPosTests = []lexTest{
+	{"empty", "", []token{{tokenEOF, 0, "", 1}}},
+	{"multiline tag", "tag -attr=\"1\" <<\n body\n>>", []token{
+		{tokenIdentifier, 0, "tag", 1},
+		{tokenSpace, 3, " ", 1},
+		{tokenAttrDeclare, 4, "-", 1},
+		{tokenIdentifier, 5, "attr", 1},
+		{tokenAssign, 9, "=", 1},
+		{tokenString, 10, `"1"`, 1},
+		{tokenSpace, 13, " ", 1},
+		{tokenLeftDelim, 14, "<<", 1},
+		{tokenNewline, 16, "\n", 1},
+		{tokenBody, 17, " body", 2},
+		{tokenNewline, 22, "\n", 2},
+		{tokenRightDelim, 23, ">>", 3},
+		{tokenEOF, 25, "", 3},
+	}},
+	{"trimmed comments and whitespace", "# comment\n   \n\t\ntag1\n\n#comment2\ntag2", []token{
+		{tokenIdentifier, 16, "tag1", 4},
+		{tokenNewline, 20, "\n", 4},
+		{tokenIdentifier, 32, "tag2", 7},
+		{tokenEOF, 36, "", 7},
+	}},
+}
+
+// Test token positions.
+func TestPos(t *testing.T) {
+	for _, test := range lexPosTests {
+		tokens := collect(&test, "", "")
+		if !equal(tokens, test.tokens, true) {
+			t.Errorf("%s:\ngot\n\t%+v\nexpected\n\t%v", test.name, tokens, test.tokens)
+			if len(tokens) == len(test.tokens) {
+				// Detailed print; avoid token.String() to expose the position value.
+				for i := range tokens {
+					if !equal(tokens[i:i+1], test.tokens[i:i+1], true) {
+						tk1 := tokens[i]
+						tk2 := test.tokens[i]
+						t.Errorf("\n\t#%d: got {%v %d %q %d} expected {%v %d %q %d}",
+							i, tk1.typ, tk1.pos, tk1.val, tk1.line, tk2.typ, tk2.pos, tk2.val, tk2.line)
+					}
+				}
+			}
+		}
+	}
+}
+
+// todo: test that goroutine exits after error

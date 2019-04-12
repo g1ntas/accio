@@ -1,4 +1,5 @@
-// inspired by https://golang.org/src/text/template/parse/lex.go
+// Inspired by Bob Pike's talk and text/template library.
+// Parts of the source code was reused from golang/text/template/parse/lex.go.
 
 package markup
 
@@ -21,17 +22,17 @@ func (p Pos) Position() Pos {
 type tokenType int
 
 const (
-	tokenError      tokenType = iota // error occurred; value is text of error
-	tokenEOF                         // end of file
-	tokenSpace                       // single space
-	tokenNewline                     // newline
-	tokenIdentifier                  // identity for tags and attributes
-	tokenLeftDelim
-	tokenRightDelim
-	tokenString       // string literal
-	tokenBody         // raw tag body text between left and right delimiters
-	tokenAttrDeclare  // dash ('-') introducing an attribute declaration
-	tokenAssign       // equals sign ('=') introducing an attribute assignment
+	tokenError       tokenType = iota // error occurred; value is text of error
+	tokenEOF                          // end of file
+	tokenSpace                        // single space
+	tokenNewline                      // newline
+	tokenIdentifier                   // identity for tags and attributes
+	tokenLeftDelim                    // body opening delimiter
+	tokenRightDelim                   // body closing delimiter
+	tokenString                       // string literal
+	tokenBody                         // raw tag body text between left and right delimiters
+	tokenAttrDeclare                  // dash ('-') introducing an attribute declaration
+	tokenAssign                       // equals sign ('=') introducing an attribute assignment
 )
 
 const eof = -1
@@ -42,7 +43,7 @@ const (
 	rightDelimiter = ">>"
 )
 
-// todo: write doc
+// token represents a token returned from the scanner.
 type token struct {
 	typ  tokenType // the type of this token.
 	pos  Pos       // the starting position, in bytes,  of this token in the input string.
@@ -67,14 +68,14 @@ type stateFn func(*lexer) stateFn
 
 // lexer holds the state of the scanner.
 type lexer struct {
-	name           string     // the name of the input; used only for errors
-	input          string     // the string being scanned
-	pos            Pos        // current position in the input
-	start          Pos        // start position of current token
-	size           Pos        // size of last rune read from the input
-	line           int        // 1+number of newlines seen
-	startLine      int        // start line of current token
-	tokens         chan token // channel of scanned tokens
+	name       string     // the name of the input; used only for errors
+	input      string     // the string being scanned
+	pos        Pos        // current position in the input
+	start      Pos        // start position of current token
+	size       Pos        // size of last rune read from the input
+	line       int        // 1+number of newlines seen
+	startLine  int        // start line of current token
+	tokens     chan token // channel of scanned tokens
 	leftDelim  string     // left delimiter for the body of the tag
 	rightDelim string     // right delimiter for the body of the tag
 }
@@ -113,7 +114,7 @@ func (lx *lexer) peek() rune {
 	return r
 }
 
-// backup steps back one rune. Can only be called once per call of next.
+// backup steps back one rune. Can only be called once per call of lx.next.
 func (lx *lexer) backup() {
 	lx.pos -= lx.size
 	// Correct newline count.
@@ -131,7 +132,6 @@ func (lx *lexer) emit(t tokenType) {
 
 // ignore skips over the pending input before this point.
 func (lx *lexer) ignore() {
-	lx.line += strings.Count(lx.value(), "\n") // todo: bug? all new lines should have been seen already
 	lx.start = lx.pos
 	lx.startLine = lx.line
 }
@@ -143,22 +143,16 @@ func (lx *lexer) errorf(format string, args ...interface{}) stateFn {
 	return nil
 }
 
-// nextToken returns the next item from the input.
+// nextToken returns the next token from the input.
 // Called by the parser, not in the lexing goroutine.
 func (lx *lexer) nextToken() token {
 	return <-lx.tokens
 }
 
-// atLeftDelim checks whether next token is left body delimiter
-func (lx *lexer) atLeftDelim() bool {
+// atString checks whether the next scanned run of characters is equal to provided string.
+func (lx *lexer) atString(s string) bool {
 	tail := lx.input[lx.pos-1:]
-	return strings.HasPrefix(tail, lx.leftDelim)
-}
-
-// atRightDelim checks whether next token is right body delimiter
-func (lx *lexer) atRightDelim() bool {
-	tail := lx.input[lx.pos-1:]
-	return strings.HasPrefix(tail, lx.rightDelim)
+	return strings.HasPrefix(tail, s)
 }
 
 // lex returns a new instance of lexer.
@@ -191,7 +185,7 @@ func (lx *lexer) run() {
 }
 
 // lexDocument scans until tag is found (alphabetical character).
-// can contain only whitespace and comments.
+// Ignores whitespace and comments.
 func lexDocument(lx *lexer) stateFn {
 	switch r := lx.next(); {
 	case r == eof:
@@ -216,9 +210,9 @@ func lexDocument(lx *lexer) stateFn {
 // lexWhitespace scans a sequence of whitespace characters and ignores them.
 // One whitespace has already been seen.
 func lexWhitespace(lx *lexer) stateFn {
-	for isWhitespace(lx.peek()) { // todo: optimize without peeking, and backup instead
-		lx.next()
+	for isWhitespace(lx.next()) {
 	}
+	lx.backup()
 	lx.ignore()
 	return lexDocument
 }
@@ -270,7 +264,7 @@ func scanIdentifier(lx *lexer) bool {
 	return true
 }
 
-// todo: docs
+// lexAfterTag scans inner tag (attributes and/or body).
 func lexAfterTag(lx *lexer) stateFn {
 	switch r := lx.next(); {
 	case isSpace(r):
@@ -283,7 +277,7 @@ func lexAfterTag(lx *lexer) stateFn {
 		return lexDocument
 	case r == eof:
 		return lexDocument
-	case lx.atLeftDelim():
+	case lx.atString(lx.leftDelim):
 		return lexBodyLeftDelimiter
 	default:
 		return lx.errorf("invalid character %#U", r)
@@ -321,14 +315,14 @@ func lexAssignment(lx *lexer) stateFn {
 	return lexQuote
 }
 
-// lexQuote scans a quoted string.
+// lexQuote scans a quoted string (including quotes).
 func lexQuote(lx *lexer) stateFn {
 	if r := lx.next(); r != '"' {
 		return lx.errorf("invalid character %#U after the attribute assignment, expected %#U instead", r, '"')
 	}
 Loop:
 	for {
-		switch lx.next(){
+		switch lx.next() {
 		case '"':
 			break Loop
 		case eof:
@@ -341,15 +335,15 @@ Loop:
 
 // lexBodyLeftDelimiter scans left (opening) delimiter which is known
 // to be present. First char is already scanned. By default it's '<<',
-// but can be changed with special tag.
+// but can be changed by parser.
 func lexBodyLeftDelimiter(lx *lexer) stateFn {
-	lx.pos += Pos(len(lx.leftDelim))-1
+	lx.pos += Pos(len(lx.leftDelim)) - 1
 	lx.emit(tokenLeftDelim)
 	return lexBody
 }
 
-// lexBody scans any text until an right (closing) delimiter.
-// todo: add more details to docs
+// lexBody scans any text until a right (closing) delimiter is present.
+// If newline is present after the left delimiter, scan multiline body.
 func lexBody(lx *lexer) stateFn {
 	for {
 		switch r := lx.next(); {
@@ -359,7 +353,7 @@ func lexBody(lx *lexer) stateFn {
 			lx.next()
 			lx.emit(tokenNewline)
 			return lexMultilineBody
-		case lx.atRightDelim():
+		case lx.atString(lx.rightDelim):
 			lx.backup()
 			lx.emit(tokenBody)
 			return lexBodyRightDelimiter
@@ -369,32 +363,28 @@ func lexBody(lx *lexer) stateFn {
 	}
 }
 
-// lexInlineBody emits body token
+// lexMultilineBody scans multiline text until a right delimiter is present on newline.
 func lexMultilineBody(lx *lexer) stateFn {
-	orgDelim := lx.rightDelim
-	lx.rightDelim = "\n"+lx.rightDelim // in multiline body right delimiter takes effect only on new line
 	for {
 		r := lx.next()
-		if lx.atRightDelim() {
+		if lx.atString("\n" + lx.rightDelim) {
 			lx.backup()
 			break
 		}
 		if r == eof {
-			return lx.errorf("unclosed tag body, ending delimiter \"%s\" expected on newline at the end of the body", orgDelim)
+			return lx.errorf("unclosed tag body, ending delimiter \"%s\" expected on newline at the end of the body", lx.rightDelim)
 		}
 	}
 	lx.emit(tokenBody)
-
 	lx.next()
 	lx.emit(tokenNewline)
-	lx.rightDelim = orgDelim // reset delimiter
 	return lexBodyRightDelimiter
 }
 
 // lexBodyRightDelimiter scans right (closing) delimiter which is known
-// to be present. By default it's '>>', but can be changed in meta settings.
+// to be present. By default it's '>>', but can be changed by parser.
 func lexBodyRightDelimiter(lx *lexer) stateFn {
-	lx.pos += Pos(len(lx.leftDelim))
+	lx.pos += Pos(len(lx.rightDelim))
 	lx.emit(tokenRightDelim)
 	return lexNewlineAfterRightDelimiter
 }
@@ -403,21 +393,21 @@ func lexBodyRightDelimiter(lx *lexer) stateFn {
 // space characters prior it. In case EOF is present, it successfully
 // will finish the scanning.
 func lexNewlineAfterRightDelimiter(lx *lexer) stateFn {
+Loop:
 	for {
-		r := lx.next()
-		if isSpace(r) {
-			continue
-		}
-		if isLineTerminator(r) {
+		switch r := lx.next(); {
+		case isSpace(r):
+			continue Loop
+		case isLineTerminator(r):
 			lx.backup()
 			lx.ignore() // ignore spaces
-			break
-		}
-		if r == eof {
+			break Loop
+		case r == eof:
 			lx.emit(tokenEOF)
 			return nil
+		default:
+			return lx.errorf("invalid character %#U after right body delimiter", r)
 		}
-		return lx.errorf("invalid character %#U after right body delimiter", r)
 	}
 	lx.next()
 	lx.emit(tokenNewline)
@@ -426,7 +416,7 @@ func lexNewlineAfterRightDelimiter(lx *lexer) stateFn {
 
 // isWhitespace checks whether r is a whitespace (space/newline/tab...) character.
 func isWhitespace(r rune) bool {
-	return unicode.IsSpace(r) || unicode.IsControl(r)
+	return unicode.IsSpace(r)
 }
 
 // isSpace checks whether r is a space character.
