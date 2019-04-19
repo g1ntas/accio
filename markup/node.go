@@ -2,6 +2,12 @@ package markup
 
 var textFormat = "%s" // Changed to "%q" in tests for better error messages.
 
+type Tag struct {
+	Attributes map[string]interface{}
+	Body string
+	Name string
+}
+
 type Node interface {
 	Type() NodeType
 	String() string

@@ -141,6 +141,13 @@ func (lx *lexer) nextToken() token {
 	return <-lx.tokens
 }
 
+// drain drains the output so the lexing goroutine will exit.
+// Called by the parser, not in the lexing goroutine.
+func (lx *lexer) drain() {
+	for range lx.tokens {
+	}
+}
+
 // atString checks whether the next scanned run of characters is equal to provided string.
 func (lx *lexer) atString(s string) bool {
 	tail := lx.input[lx.pos-1:]
