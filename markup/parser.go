@@ -123,7 +123,27 @@ func (p *parser) parseAttrOrBody() {
 
 // parseAttr todo
 func (p *parser) parseAttr() {
-	// todo
+	token := p.next()
+	if token.typ != tokenIdentifier {
+		p.errorf("expected identifier, got %s", token)
+	}
+	name := token.val
+	if _, exists := p.tag.Attributes[name]; exists {
+		p.errorf("attribute '%s' already exists for this tag", name)
+	}
+	if token = p.next(); token.typ != tokenAssign {
+		p.errorf("expected '=', got %s", token)
+	}
+	token = p.next()
+	if token.typ != tokenString {
+		p.errorf("expected quoted string, got %s", token)
+	}
+	value, err := unquoteString(token.val)
+	if err != nil {
+		p.error(err)
+	}
+	// todo: validate if value is valid based on tag name and attr name
+	p.tag.Attributes[name] = value
 }
 
 // parseBody todo
@@ -152,4 +172,13 @@ func (p *parser) newTag(name string) *Tag {
 	p.tag = &Tag{Name: name}
 	p.Tags = append(p.Tags, p.tag)
 	return p.tag
+}
+
+// unquoteString removes double quote characters surrounding the string.
+func unquoteString(s string) (string, error) {
+	l := len(s)
+	if s[0:1] != "\"" || s[l-1:] != "\"" {
+		return "", fmt.Errorf("value is expected to be surrounded with \" quotes")
+	}
+	return s[1:l], nil
 }
