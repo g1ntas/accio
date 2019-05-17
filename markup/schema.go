@@ -41,43 +41,55 @@ type TagSchema struct {
 
 type AttrSchema struct {
 	Unique bool
-	Validator validatorFn
+	Validators []validatorFn
 }
 
 var schema = &Schema{
 	Tags: map[string]*TagSchema{
-		"filename": &TagSchema{
+		"filename": {
 			HasBody: true,
 			Multiple: false,
 		},
-		"variable": &TagSchema{
+		"variable": {
 			HasBody: true,
 			Multiple: true,
 			Attributes: map[string]*AttrSchema{
-				"name": &AttrSchema{Unique: true},
+				"name": {Unique: true},
 			},
 		},
-		"template": &TagSchema{
+		"template": {
 			HasBody: true,
 			Multiple: false,
 			Attributes: map[string]*AttrSchema{
-				"left-delimiter": &AttrSchema{Unique: false},
-				"right-delimiter": &AttrSchema{Unique: false},
-				"trim-indentation": &AttrSchema{Unique: false, Validator: IsBoolean},
+				"left-delimiter": {Unique: false},
+				"right-delimiter": {Unique: false},
+				"trim-indentation": {Unique: false, Validators: []validatorFn{IsBoolean}},
 			},
 		},
-		"partial": &TagSchema{
+		"partial": {
 			HasBody: true,
 			Multiple: false,
 			Attributes: map[string]*AttrSchema{
-				"name": &AttrSchema{Unique: true},
-				"left-delimiter": &AttrSchema{Unique: false},
-				"right-delimiter": &AttrSchema{Unique: false},
-				"trim-indentation": &AttrSchema{Unique: false},
+				"name": {Unique: true},
+				"left-delimiter": {Unique: false},
+				"right-delimiter": {Unique: false},
+				"trim-indentation": {Unique: false},
 			},
 		},
 	},
 }
+
+/*func (p *parser) validateTag(node TagNode) bool {
+	schema, ok := p.schema.Tags[node.Name]
+	if !ok {
+		return true
+	}
+	if ok && schema.HasBody && !node.HasBody {
+		return false
+	}
+
+	return true
+}*/
 
 func IsBoolean(value string) bool {
 	return value == "true" || value == "false"

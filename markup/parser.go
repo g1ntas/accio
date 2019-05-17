@@ -5,11 +5,21 @@ import (
 	"runtime"
 )
 
-// Tag todo
-type Tag struct {
-	Attributes map[string]string
+// TagNode todo
+type TagNode struct {
+	Attributes []*AttrNode
+	HasBody bool
 	Body string
 	Name string
+	StartLine int
+	StartPos Pos
+	EndPos Pos
+}
+
+// Attr todo
+type AttrNode struct {
+	Name string
+	Value string
 }
 
 // Pos represents a byte position in the original input text from which
@@ -22,13 +32,14 @@ func (p Pos) Position() Pos {
 
 // parser is the representation of a single parsed template.
 type parser struct {
-	Name string // name of the template represented by the tree.
-	Tags []*Tag // list of nodes of the tree.
-	text string // text parsed to create the template.
+	Name string     // name of the template represented by the tree.
+	Tags []*TagNode // list of nodes of the tree.
+	text string     // text parsed to create the template.
 	// For parsing only; cleared after parse.
 	lex *lexer
-	token token // token currently being parsed.
-	tag *Tag // tag currently being builded.
+	token token  // token currently being parsed.
+	tag *TagNode // tag currently being built.
+	schema *Schema
 }
 
 // Parse returns a parse.parser of the template. If an error is encountered,
@@ -65,7 +76,7 @@ func (p *parser) stop() {
 // default ("<<" or ">>") is used.
 func (p *parser) Parse(text, leftDelim, rightDelim string) (tree *parser, err error) {
 	defer p.recover(&err)
-	p.Tags = []*Tag{}
+	p.Tags = []*TagNode{}
 	p.lex = lex(p.Name, text, leftDelim, rightDelim) // start parsing
 	p.text = text
 	p.parseTemplate()
@@ -113,7 +124,7 @@ func (p *parser) parseAttrOrBody() {
 	case tokenNewline:
 		return
 	case tokenAttrDeclare:
-		p.parseAttr()
+		p.parseAttr() // todo: parse plural
 	case tokenLeftDelim:
 		p.parseBody()
 	default:
@@ -168,8 +179,8 @@ func (p *parser) error(err error) {
 }
 
 // newTag todo
-func (p *parser) newTag(name string) *Tag {
-	p.tag = &Tag{Name: name}
+func (p *parser) newTag(name string) *TagNode {
+	p.tag = &TagNode{Name: name}
 	p.Tags = append(p.Tags, p.tag)
 	return p.tag
 }
