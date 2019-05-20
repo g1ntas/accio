@@ -5,19 +5,23 @@ import (
 	"runtime"
 )
 
+// attribute names for reserved 'delimiters' tag
+const (
+	delimitersAttrLeft  = "left"
+	delimitersAttrRight = "right"
+)
+
 // TagNode todo
 type TagNode struct {
 	Attributes []*AttrNode
 	HasBody bool
 	Body string
 	Name string
-	StartLine int
-	StartPos Pos
-	EndPos Pos
 }
 
-// Attr todo
+// AttrNode todo
 type AttrNode struct {
+	Tag *TagNode
 	Name string
 	Value string
 }
@@ -90,6 +94,9 @@ func (p *parser) parseTemplate() {
 		switch token := p.next(); token.typ {
 		case tokenEOF:
 			return
+		case tokenDelimiters:
+			p.parseDelimitersTag()
+			continue
 		case tokenIdentifier:
 			p.parseTag()
 			continue
@@ -115,6 +122,15 @@ func (p *parser) parseTag() {
 	default:
 		p.errorf("unexpected %s", token)
 	}
+}
+
+// parseDelimitersTag todo
+func (p *parser) parseDelimitersTag() {
+	if len(p.Tags) > 0 {
+		p.errorf("reserved tag %s is not allowed here, it must be defined before all other tags", p.token)
+		return
+	}
+	
 }
 
 // parseAttrOrBody todo

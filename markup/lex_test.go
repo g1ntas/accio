@@ -17,6 +17,7 @@ var tokenName = map[tokenType]string {
 	tokenBody:        "body",
 	tokenAttrDeclare: "-",
 	tokenAssign:      "=",
+	tokenDelimiters:  "delimiters",
 }
 
 func (t tokenType) String() string {
@@ -48,6 +49,7 @@ var (
 	tNewline     = mkToken(tokenNewline, "\n")
 	tBodyLeft    = mkToken(tokenLeftDelim, "<<")
 	tBodyRight   = mkToken(tokenRightDelim, ">>")
+	tDelimiters  = mkToken(tokenDelimiters, "delimiters")
 )
 
 var lexTests = []lexTest{
@@ -61,6 +63,10 @@ var lexTests = []lexTest{
 	}},
 	{"dash within tag", "tag-1", []token{
 		mkToken(tokenIdentifier, "tag-1"),
+		tEOF,
+	}},
+	{"reserved tag name", "delimiters", []token{
+		tDelimiters,
 		tEOF,
 	}},
 	{"tag with single attribute", `tag -attr="value"`, []token{

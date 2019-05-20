@@ -25,6 +25,7 @@ const (
 	tokenBody                         // raw tag body text between left and right delimiters
 	tokenAttrDeclare                  // dash ('-') introducing an attribute declaration
 	tokenAssign                       // equals sign ('=') introducing an attribute assignment
+	tokenDelimiters                   // reserved tag keyword 'delimiters'
 )
 
 const eof = -1
@@ -34,6 +35,11 @@ const (
 	leftDelimiter  = "<<"
 	rightDelimiter = ">>"
 )
+
+// reserved tag names
+var reservedTags = map[string]tokenType{
+	"delimiters": tokenDelimiters,
+}
 
 // token represents a token returned from the scanner.
 type token struct {
@@ -240,7 +246,11 @@ func lexTagIdentifier(lx *lexer) stateFn {
 	if !isSpace(r) && !isLineTerminator(r) && r != eof {
 		return lx.errorf("invalid character %#U within tag identifier, space or newline expected", r)
 	}
-	lx.emit(tokenIdentifier)
+	if tokenType, exists := reservedTags[lx.value()]; exists {
+		lx.emit(tokenType)
+	} else {
+		lx.emit(tokenIdentifier)
+	}
 	return lexAfterTag
 }
 
