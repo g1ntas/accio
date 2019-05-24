@@ -8,15 +8,14 @@ import (
 
 // attribute names for reserved 'delimiters' tag
 const (
-	delimitersAttrLeft  = "left"
-	delimitersAttrRight = "right"
+	attrDelimitersLeft  = "left"
+	attrDelimitersRight  = "right"
 )
 
 // TagNode todo
 type TagNode struct {
 	Attributes map[string]*AttrNode
-	HasBody bool
-	Body string
+	Body *string
 	Name string
 }
 
@@ -103,9 +102,9 @@ func (p *parser) parseTemplate() {
 			continue
 		case tokenError:
 			p.errorf("%s", token)
-
+		default:
+			p.errorf("unexpected %s", token)
 		}
-
 	}
 }
 
@@ -155,10 +154,10 @@ func (p *parser) parseDelimiterAttr() {
 		p.errorf("attribute %s of the tag %s can not contain invisible characters", name, p.tag.Name)
 	}
 	switch name {
-	case leftDelimiter:
+	case attrDelimitersLeft:
 		p.lex.leftDelim = value
 		return
-	case rightDelimiter:
+	case attrDelimitersRight:
 		p.lex.rightDelim = value
 		return
 	}
@@ -177,6 +176,7 @@ func (p *parser) parseAttrOrBody() {
 			p.parseAttr()
 		case tokenLeftDelim:
 			p.parseBody()
+			return
 		default:
 			p.errorf("unexpected %s", token)
 		}
