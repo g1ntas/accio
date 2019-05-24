@@ -254,7 +254,7 @@ func lexTagIdentifier(lx *lexer) stateFn {
 	return lexAfterTag
 }
 
-// scanIdentifierTail scans identifier right part which can contain letters, numbers and dashes.
+// scanIdentifier scans identifier which can contain letters, numbers and dashes.
 // First letter should already be scanned. Identifier can not end with dash.
 func scanIdentifier(lx *lexer) bool {
 	var r rune

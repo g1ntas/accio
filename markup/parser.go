@@ -3,6 +3,7 @@ package markup
 import (
 	"fmt"
 	"runtime"
+	"unicode"
 )
 
 // attribute names for reserved 'delimiters' tag
@@ -13,7 +14,7 @@ const (
 
 // TagNode todo
 type TagNode struct {
-	Attributes []*AttrNode
+	Attributes map[string]*AttrNode
 	HasBody bool
 	Body string
 	Name string
@@ -101,7 +102,7 @@ func (p *parser) parseTemplate() {
 			p.parseTag()
 			continue
 		case tokenError:
-			return // todo: error
+			p.errorf("%s", token)
 
 		}
 
@@ -110,7 +111,6 @@ func (p *parser) parseTemplate() {
 
 // parseTag todo
 func (p *parser) parseTag() {
-	// todo: check reserved words; In this case 'delimiters': must be at the beginning of template.
 	p.newTag(p.token.val)
 	// consume next whitespace token
 	switch token := p.next(); token.typ {
@@ -130,34 +130,81 @@ func (p *parser) parseDelimitersTag() {
 		p.errorf("reserved tag %s is not allowed here, it must be defined before all other tags", p.token)
 		return
 	}
-	
+	for {
+		switch token := p.next(); token.typ {
+		case tokenAttrDeclare:
+			p.parseDelimiterAttr()
+			continue
+		case tokenSpace:
+			continue
+		case tokenNewline:
+		case tokenEOF:
+			return
+		case tokenLeftDelim:
+			p.errorf("body is not allowed here", token)
+		case tokenError:
+			p.errorf("unexpected %s", token)
+		}
+	}
+}
+
+// parseDelimiterAttr todo
+func (p *parser) parseDelimiterAttr() {
+	name, value := p.scanAttr()
+	if (name == leftDelimiter || name == rightDelimiter) && containsInvisibleChars(value) {
+		p.errorf("attribute %s of the tag %s can not contain invisible characters", name, p.tag.Name)
+	}
+	switch name {
+	case leftDelimiter:
+		p.lex.leftDelim = value
+		return
+	case rightDelimiter:
+		p.lex.rightDelim = value
+		return
+	}
 }
 
 // parseAttrOrBody todo
 func (p *parser) parseAttrOrBody() {
-	switch token := p.next(); token.typ {
-	case tokenEOF:
-	case tokenNewline:
-		return
-	case tokenAttrDeclare:
-		p.parseAttr() // todo: parse plural
-	case tokenLeftDelim:
-		p.parseBody()
-	default:
-		p.errorf("unexpected %s", token)
+	for {
+		switch token := p.next(); token.typ {
+		case tokenSpace:
+			continue
+		case tokenEOF:
+		case tokenNewline:
+			return
+		case tokenAttrDeclare:
+			p.parseAttr()
+		case tokenLeftDelim:
+			p.parseBody()
+		default:
+			p.errorf("unexpected %s", token)
+		}
 	}
 }
 
 // parseAttr todo
 func (p *parser) parseAttr() {
+	name, value := p.scanAttr()
+	if _, exists := p.tag.Attributes[name]; exists {
+		p.errorf("attribute '%s' already exists for this tag", name)
+	}
+	// todo: perform schema validation
+	p.tag.Attributes[name] = &AttrNode{
+		Tag: p.tag,
+		Name: name,
+		Value: value,
+	}
+}
+
+// scanAttr scans and consumes tokens of the attribute which is known to be present
+// and returns it's name and value.
+func (p *parser) scanAttr() (name string, value string){
 	token := p.next()
 	if token.typ != tokenIdentifier {
 		p.errorf("expected identifier, got %s", token)
 	}
-	name := token.val
-	if _, exists := p.tag.Attributes[name]; exists {
-		p.errorf("attribute '%s' already exists for this tag", name)
-	}
+	name = token.val
 	if token = p.next(); token.typ != tokenAssign {
 		p.errorf("expected '=', got %s", token)
 	}
@@ -169,13 +216,24 @@ func (p *parser) parseAttr() {
 	if err != nil {
 		p.error(err)
 	}
-	// todo: validate if value is valid based on tag name and attr name
-	p.tag.Attributes[name] = value
+	return
 }
 
 // parseBody todo
 func (p *parser) parseBody() {
-	// todo
+	token := p.next()
+	if token.typ == tokenNewline {
+		token = p.next()
+	}
+	if token.typ != tokenBody {
+		p.errorf("unexpected %s", token)
+	}
+	p.tag.Body = token.val
+	p.tag.HasBody = true
+	token = p.next()
+	if token.typ != tokenRightDelim {
+		p.errorf("unexpected %s", token)
+	}
 }
 
 // next returns the next token.
@@ -208,4 +266,16 @@ func unquoteString(s string) (string, error) {
 		return "", fmt.Errorf("value is expected to be surrounded with \" quotes")
 	}
 	return s[1:l], nil
+}
+
+// containsInvisibleChars checks whether string contains any character
+// which is not visible to the human eye, even if it consumes space at
+// the screen.
+func containsInvisibleChars(s string) bool {
+	for _, r := range s {
+		if !unicode.IsGraphic(r) || unicode.IsSpace(r) {
+			return true
+		}
+	}
+	return false
 }
