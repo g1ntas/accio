@@ -36,8 +36,8 @@ func (p Pos) Position() Pos {
 
 // parser is the representation of a single parsed template.
 type parser struct {
-	Name string     // name of the template represented by the tree.
-	Tags []*TagNode // list of nodes of the tree.
+	name string     // name of the template represented by the tree.
+	tags []*TagNode // list of nodes of the tree.
 	text string     // text parsed to create the template.
 	// For parsing only; cleared after parse.
 	lex *lexer
@@ -46,16 +46,16 @@ type parser struct {
 	schema *Schema
 }
 
-// Parse returns a parse.parser of the template. If an error is encountered,
+// parse returns a parse.parser of the template. If an error is encountered,
 // parsing stops and an empty map is returned with error.
-func Parse(name, text, leftDelim, rightDelim string) (*parser, error) {
-	t := &parser{Name: name}
-	t.text = text
-	_, err := t.Parse(text, leftDelim, rightDelim)
-	return t, err
+func Parse(name, text, leftDelim, rightDelim string) ([]*TagNode, error) {
+	p := &parser{name: name}
+	p.text = text
+	_, err := p.parse(text, leftDelim, rightDelim)
+	return p.tags, err
 }
 
-// recover is the handler that turns panic into returns from the top level of Parse.
+// recover is the handler that turns panic into returns from the top level of parse.
 func (p *parser) recover(errp *error) {
 	e := recover()
 	if e != nil {
@@ -75,13 +75,13 @@ func (p *parser) stop() {
 	p.lex = nil
 }
 
-// Parse parses the template definition string to construct a representation of
+// parse parses the template definition string to construct a representation of
 // the template for execution. If either body delimiter string is empty, the
 // default ("<<" or ">>") is used.
-func (p *parser) Parse(text, leftDelim, rightDelim string) (tree *parser, err error) {
+func (p *parser) parse(text, leftDelim, rightDelim string) (tree *parser, err error) {
 	defer p.recover(&err)
-	p.Tags = []*TagNode{}
-	p.lex = lex(p.Name, text, leftDelim, rightDelim) // start parsing
+	p.tags = []*TagNode{}
+	p.lex = lex(p.name, text, leftDelim, rightDelim) // start parsing
 	p.text = text
 	p.parseTemplate()
 	p.stop()
@@ -125,7 +125,7 @@ func (p *parser) parseTag() {
 
 // parseDelimitersTag todo
 func (p *parser) parseDelimitersTag() {
-	if len(p.Tags) > 0 {
+	if len(p.tags) > 0 {
 		p.errorf("reserved tag %s is not allowed here, it must be defined before all other tags", p.token)
 		return
 	}
@@ -228,8 +228,7 @@ func (p *parser) parseBody() {
 	if token.typ != tokenBody {
 		p.errorf("unexpected %s", token)
 	}
-	p.tag.Body = token.val
-	p.tag.HasBody = true
+	p.tag.Body = &token.val
 	token = p.next()
 	if token.typ != tokenRightDelim {
 		p.errorf("unexpected %s", token)
@@ -243,7 +242,7 @@ func (p *parser) next() token {
 
 // errorf formats the error and terminates processing.
 func (p *parser) errorf(format string, args ...interface{}) {
-	format = fmt.Sprintf("template at %s:%d: %s", p.Name, p.token.line, format)
+	format = fmt.Sprintf("template at %s:%d: %s", p.name, p.token.line, format)
 	panic(fmt.Errorf(format, args...))
 }
 
@@ -255,7 +254,7 @@ func (p *parser) error(err error) {
 // newTag todo
 func (p *parser) newTag(name string) *TagNode {
 	p.tag = &TagNode{Name: name}
-	p.Tags = append(p.Tags, p.tag)
+	p.tags = append(p.tags, p.tag)
 	return p.tag
 }
 

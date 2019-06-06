@@ -80,7 +80,7 @@ var schema = &Schema{
 }
 
 /*func (p *parser) validateTag(node TagNode) bool {
-	schema, ok := p.schema.Tags[node.Name]
+	schema, ok := p.schema.tags[node.name]
 	if !ok {
 		return true
 	}
