@@ -142,13 +142,13 @@ func (lx *lexer) errorf(format string, args ...interface{}) stateFn {
 }
 
 // nextToken returns the next token from the input.
-// Called by the parser, not in the lexing goroutine.
+// Called by the Parser, not in the lexing goroutine.
 func (lx *lexer) nextToken() token {
 	return <-lx.tokens
 }
 
 // drain drains the output so the lexing goroutine will exit.
-// Called by the parser, not in the lexing goroutine.
+// Called by the Parser, not in the lexing goroutine.
 func (lx *lexer) drain() {
 	for range lx.tokens {
 	}
@@ -344,7 +344,7 @@ Loop:
 
 // lexBodyLeftDelimiter scans left (opening) delimiter which is known
 // to be present. First char is already scanned. By default it's '<<',
-// but can be changed by parser.
+// but can be changed by Parser.
 func lexBodyLeftDelimiter(lx *lexer) stateFn {
 	lx.pos += Pos(len(lx.leftDelim)) - 1
 	lx.emit(tokenLeftDelim)
@@ -391,7 +391,7 @@ func lexMultilineBody(lx *lexer) stateFn {
 }
 
 // lexBodyRightDelimiter scans right (closing) delimiter which is known
-// to be present. By default it's '>>', but can be changed by parser.
+// to be present. By default it's '>>', but can be changed by Parser.
 func lexBodyRightDelimiter(lx *lexer) stateFn {
 	lx.pos += Pos(len(lx.rightDelim))
 	lx.emit(tokenRightDelim)

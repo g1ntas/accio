@@ -107,7 +107,7 @@ var parseTests = []struct {
 	{"left delimiter on newline",  "tag\n<<", hasError, emptyAst},
 	{"attr on newline",  "tag\n-attr", hasError, emptyAst},
 
-	// errors fired in parser
+	// errors fired in Parser
 }
 
 func astEqual(ast1, ast2 []*TagNode) bool {
@@ -137,18 +137,21 @@ func astEqual(ast1, ast2 []*TagNode) bool {
 
 func TestParse(t *testing.T) {
 	for _, test := range parseTests {
-		ast, err := Parse("test.go", test.input, "", "")
+		parser, err := Parse("test.go", test.input, "", "")
 		switch {
 		case err == nil && !test.ok:
 			t.Errorf("%q: expected error; got none", test.name)
 		case err != nil && test.ok:
-			t.Errorf("%q: unexpected error: %v", test.name, err)
+			t.Errorf("%q: unexpected error: %v (token: %s, tags scanned: %d)", test.name, err, parser.token.val, len(parser.Tags))
+			if len(parser.Tags) > 0 {
+				t.Errorf("Scanned tag: %s", parser.Tags[0].Name)
+			}
 		case err != nil && !test.ok:
 			// expected error, got one
 			if *debug {
 				fmt.Printf("%s: %s\n\t%s\n", test.name, test.input, err)
 			}
-		case !astEqual(test.ast, ast):
+		case !astEqual(test.ast, parser.Tags):
 			// todo: represent expected and actual structures
 			t.Errorf("%s=(%q): failed", test.name, test.input)
 		}

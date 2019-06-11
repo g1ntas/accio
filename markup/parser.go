@@ -34,10 +34,10 @@ func (p Pos) Position() Pos {
 	return p
 }
 
-// parser is the representation of a single parsed template.
-type parser struct {
-	name string     // name of the template represented by the tree.
-	tags []*TagNode // list of nodes of the tree.
+// Parser is the representation of a single parsed template.
+type Parser struct {
+	Name string     // name of the template represented by the tree.
+	Tags []*TagNode // list of nodes of the tree.
 	text string     // text parsed to create the template.
 	// For parsing only; cleared after parse.
 	lex *lexer
@@ -46,17 +46,17 @@ type parser struct {
 	schema *Schema
 }
 
-// parse returns a parse.parser of the template. If an error is encountered,
+// parse returns a parse.Parser of the template. If an error is encountered,
 // parsing stops and an empty map is returned with error.
-func Parse(name, text, leftDelim, rightDelim string) ([]*TagNode, error) {
-	p := &parser{name: name}
+func Parse(name, text, leftDelim, rightDelim string) (p *Parser, err error) {
+	p = &Parser{Name: name}
 	p.text = text
-	_, err := p.parse(text, leftDelim, rightDelim)
-	return p.tags, err
+	_, err = p.parse(text, leftDelim, rightDelim)
+	return
 }
 
 // recover is the handler that turns panic into returns from the top level of parse.
-func (p *parser) recover(errp *error) {
+func (p *Parser) recover(errp *error) {
 	e := recover()
 	if e != nil {
 		if _, ok := e.(runtime.Error); ok {
@@ -70,62 +70,61 @@ func (p *parser) recover(errp *error) {
 	}
 }
 
-// stop terminates parser.
-func (p *parser) stop() {
+// stop terminates Parser.
+func (p *Parser) stop() {
 	p.lex = nil
 }
 
 // parse parses the template definition string to construct a representation of
 // the template for execution. If either body delimiter string is empty, the
 // default ("<<" or ">>") is used.
-func (p *parser) parse(text, leftDelim, rightDelim string) (tree *parser, err error) {
+func (p *Parser) parse(text, leftDelim, rightDelim string) (tree *Parser, err error) {
 	defer p.recover(&err)
-	p.tags = []*TagNode{}
-	p.lex = lex(p.name, text, leftDelim, rightDelim) // start parsing
+	p.Tags = []*TagNode{}
+	p.lex = lex(p.Name, text, leftDelim, rightDelim) // start parsing
 	p.text = text
 	p.parseTemplate()
 	p.stop()
 	return p, nil
 }
 
-// parseTemplate is the top-level parser for a template. It runs to EOF.
-func (p *parser) parseTemplate() {
-	for {
-		switch token := p.next(); token.typ {
-		case tokenEOF:
-			return
-		case tokenDelimiters:
-			p.parseDelimitersTag()
-			continue
-		case tokenIdentifier:
-			p.parseTag()
-			continue
-		case tokenError:
-			p.errorf("%s", token)
-		default:
-			p.errorf("unexpected %s", token)
-		}
+// parseTemplate is the top-level Parser for a template. It runs to EOF.
+func (p *Parser) parseTemplate() {
+	switch token := p.next(); token.typ {
+	case tokenEOF:
+		return
+	case tokenDelimiters:
+		p.parseDelimitersTag()
+	case tokenIdentifier:
+		p.parseTag()
+	case tokenError:
+		p.errorf("%s", token)
+	default:
+		p.errorf("unexpected %s", token)
 	}
 }
 
 // parseTag todo
-func (p *parser) parseTag() {
+func (p *Parser) parseTag() {
 	p.newTag(p.token.val)
 	// consume next whitespace token
 	switch token := p.next(); token.typ {
 	case tokenEOF:
+		return
 	case tokenNewline:
+		p.parseTemplate()
 		return
 	case tokenSpace:
 		p.parseAttrOrBody()
+		return
 	default:
 		p.errorf("unexpected %s", token)
 	}
 }
 
 // parseDelimitersTag todo
-func (p *parser) parseDelimitersTag() {
-	if len(p.tags) > 0 {
+func (p *Parser) parseDelimitersTag() {
+	if len(p.Tags) > 0 {
 		p.errorf("reserved tag %s is not allowed here, it must be defined before all other tags", p.token)
 		return
 	}
@@ -148,7 +147,7 @@ func (p *parser) parseDelimitersTag() {
 }
 
 // parseDelimiterAttr todo
-func (p *parser) parseDelimiterAttr() {
+func (p *Parser) parseDelimiterAttr() {
 	name, value := p.scanAttr()
 	if (name == leftDelimiter || name == rightDelimiter) && containsInvisibleChars(value) {
 		p.errorf("attribute %s of the tag %s can not contain invisible characters", name, p.tag.Name)
@@ -164,7 +163,7 @@ func (p *parser) parseDelimiterAttr() {
 }
 
 // parseAttrOrBody todo
-func (p *parser) parseAttrOrBody() {
+func (p *Parser) parseAttrOrBody() {
 	for {
 		switch token := p.next(); token.typ {
 		case tokenSpace:
@@ -184,7 +183,7 @@ func (p *parser) parseAttrOrBody() {
 }
 
 // parseAttr todo
-func (p *parser) parseAttr() {
+func (p *Parser) parseAttr() {
 	name, value := p.scanAttr()
 	if _, exists := p.tag.Attributes[name]; exists {
 		p.errorf("attribute '%s' already exists for this tag", name)
@@ -199,7 +198,7 @@ func (p *parser) parseAttr() {
 
 // scanAttr scans and consumes tokens of the attribute which is known to be present
 // and returns it's name and value.
-func (p *parser) scanAttr() (name string, value string){
+func (p *Parser) scanAttr() (name string, value string){
 	token := p.next()
 	if token.typ != tokenIdentifier {
 		p.errorf("expected identifier, got %s", token)
@@ -220,7 +219,7 @@ func (p *parser) scanAttr() (name string, value string){
 }
 
 // parseBody todo
-func (p *parser) parseBody() {
+func (p *Parser) parseBody() {
 	token := p.next()
 	if token.typ == tokenNewline {
 		token = p.next()
@@ -236,25 +235,26 @@ func (p *parser) parseBody() {
 }
 
 // next returns the next token.
-func (p *parser) next() token {
-	return p.lex.nextToken()
+func (p *Parser) next() token {
+	p.token = p.lex.nextToken()
+	return p.token
 }
 
 // errorf formats the error and terminates processing.
-func (p *parser) errorf(format string, args ...interface{}) {
-	format = fmt.Sprintf("template at %s:%d: %s", p.name, p.token.line, format)
+func (p *Parser) errorf(format string, args ...interface{}) {
+	format = fmt.Sprintf("template at %s:%d: %s", p.Name, p.token.line, format)
 	panic(fmt.Errorf(format, args...))
 }
 
 // error terminates processing with error.
-func (p *parser) error(err error) {
+func (p *Parser) error(err error) {
 	p.errorf("%s", err)
 }
 
 // newTag todo
-func (p *parser) newTag(name string) *TagNode {
+func (p *Parser) newTag(name string) *TagNode {
 	p.tag = &TagNode{Name: name}
-	p.tags = append(p.tags, p.tag)
+	p.Tags = append(p.Tags, p.tag)
 	return p.tag
 }
 
