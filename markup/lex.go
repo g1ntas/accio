@@ -61,8 +61,8 @@ func (t token) String() string {
 	return fmt.Sprintf("%q", t.val)
 }
 
-// stateFn represents the state of the scanner as a function that returns the next state.
-type stateFn func(*lexer) stateFn
+// lexStateFn represents the state of the scanner as a function that returns the next state.
+type lexStateFn func(*lexer) lexStateFn
 
 // lexer holds the state of the scanner.
 type lexer struct {
@@ -136,7 +136,7 @@ func (lx *lexer) ignore() {
 
 // errorf returns an error token and terminates the scan by passing
 // back a nil pointer that will be the next state, terminating lx.nextToken.
-func (lx *lexer) errorf(format string, args ...interface{}) stateFn {
+func (lx *lexer) errorf(format string, args ...interface{}) lexStateFn {
 	lx.tokens <- token{tokenError, lx.start, fmt.Sprintf(format, args...), lx.startLine}
 	return nil
 }
@@ -191,7 +191,7 @@ func (lx *lexer) run() {
 
 // lexDocument scans until tag is found (alphabetical character).
 // Ignores whitespace and comments.
-func lexDocument(lx *lexer) stateFn {
+func lexDocument(lx *lexer) lexStateFn {
 	switch r := lx.next(); {
 	case r == eof:
 		lx.emit(tokenEOF)
@@ -214,7 +214,7 @@ func lexDocument(lx *lexer) stateFn {
 
 // lexWhitespace scans a sequence of whitespace characters and ignores them.
 // One whitespace has already been seen.
-func lexWhitespace(lx *lexer) stateFn {
+func lexWhitespace(lx *lexer) lexStateFn {
 	for isWhitespace(lx.next()) {
 	}
 	lx.backup()
@@ -225,7 +225,7 @@ func lexWhitespace(lx *lexer) stateFn {
 // lexComment scans a single-line comment and ignores it.
 // Comment identifier is already scanned so comment is already
 // known to be present.
-func lexComment(lx *lexer) stateFn {
+func lexComment(lx *lexer) lexStateFn {
 	// consume everything on that line
 	for {
 		if r := lx.next(); isLineTerminator(r) || r == eof {
@@ -238,7 +238,7 @@ func lexComment(lx *lexer) stateFn {
 
 // lexTagIdentifier scans a tag name.
 // First letter has already been seen.
-func lexTagIdentifier(lx *lexer) stateFn {
+func lexTagIdentifier(lx *lexer) lexStateFn {
 	if !scanIdentifier(lx) {
 		return nil
 	}
@@ -274,7 +274,7 @@ func scanIdentifier(lx *lexer) bool {
 }
 
 // lexAfterTag scans inner tag (attributes and/or body).
-func lexAfterTag(lx *lexer) stateFn {
+func lexAfterTag(lx *lexer) lexStateFn {
 	switch r := lx.next(); {
 	case isSpace(r):
 		return lexSpace
@@ -295,7 +295,7 @@ func lexAfterTag(lx *lexer) stateFn {
 
 // lexSpace scans a sequence of space characters.
 // One space has already been seen.
-func lexSpace(lx *lexer) stateFn {
+func lexSpace(lx *lexer) lexStateFn {
 	for isSpace(lx.next()) {
 	}
 	lx.backup()
@@ -304,7 +304,7 @@ func lexSpace(lx *lexer) stateFn {
 }
 
 // lexAttribute scans an attribute name.
-func lexAttributeName(lx *lexer) stateFn {
+func lexAttributeName(lx *lexer) lexStateFn {
 	if r := lx.next(); !isLetter(r) {
 		return lx.errorf("invalid character %#U within attribute name, valid ascii letter expected", r)
 	}
@@ -316,7 +316,7 @@ func lexAttributeName(lx *lexer) stateFn {
 }
 
 // lexAssignment scans an assignment character '='.
-func lexAssignment(lx *lexer) stateFn {
+func lexAssignment(lx *lexer) lexStateFn {
 	if r := lx.next(); r != '=' {
 		return lx.errorf("invalid character %#U after the attribute, expected %#U instead", r, '=')
 	}
@@ -325,7 +325,7 @@ func lexAssignment(lx *lexer) stateFn {
 }
 
 // lexQuote scans a quoted string (including quotes).
-func lexQuote(lx *lexer) stateFn {
+func lexQuote(lx *lexer) lexStateFn {
 	if r := lx.next(); r != '"' {
 		return lx.errorf("invalid character %#U after the attribute assignment, expected %#U instead", r, '"')
 	}
@@ -345,7 +345,7 @@ Loop:
 // lexBodyLeftDelimiter scans left (opening) delimiter which is known
 // to be present. First char is already scanned. By default it's '<<',
 // but can be changed by Parser.
-func lexBodyLeftDelimiter(lx *lexer) stateFn {
+func lexBodyLeftDelimiter(lx *lexer) lexStateFn {
 	lx.pos += Pos(len(lx.leftDelim)) - 1
 	lx.emit(tokenLeftDelim)
 	return lexBody
@@ -353,7 +353,7 @@ func lexBodyLeftDelimiter(lx *lexer) stateFn {
 
 // lexBody scans any text until a right (closing) delimiter is present.
 // If newline is present after the left delimiter, scan multiline body.
-func lexBody(lx *lexer) stateFn {
+func lexBody(lx *lexer) lexStateFn {
 	for {
 		switch r := lx.next(); {
 		case isLineTerminator(r):
@@ -373,7 +373,7 @@ func lexBody(lx *lexer) stateFn {
 }
 
 // lexMultilineBody scans multiline text until a right delimiter is present on newline.
-func lexMultilineBody(lx *lexer) stateFn {
+func lexMultilineBody(lx *lexer) lexStateFn {
 	for {
 		r := lx.next()
 		if lx.atString("\n" + lx.rightDelim) {
@@ -392,7 +392,7 @@ func lexMultilineBody(lx *lexer) stateFn {
 
 // lexBodyRightDelimiter scans right (closing) delimiter which is known
 // to be present. By default it's '>>', but can be changed by Parser.
-func lexBodyRightDelimiter(lx *lexer) stateFn {
+func lexBodyRightDelimiter(lx *lexer) lexStateFn {
 	lx.pos += Pos(len(lx.rightDelim))
 	lx.emit(tokenRightDelim)
 	return lexNewlineAfterRightDelimiter
@@ -401,7 +401,7 @@ func lexBodyRightDelimiter(lx *lexer) stateFn {
 // lexNewlineAfterRightDelimiter scans newline token and ignores all
 // space characters prior it. In case EOF is present, it successfully
 // will finish the scanning.
-func lexNewlineAfterRightDelimiter(lx *lexer) stateFn {
+func lexNewlineAfterRightDelimiter(lx *lexer) lexStateFn {
 Loop:
 	for {
 		switch r := lx.next(); {

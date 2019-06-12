@@ -3,6 +3,7 @@ package markup
 import (
 	"flag"
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -30,6 +31,8 @@ var parseTests = []struct {
 	{"multiline comments", "# line1\n#line2", noError, emptyAst},
 	{"empty tag", "tag", noError, []*TagNode{{Name: "tag"}}},
 	{"reserved tag", "delimiters", noError, []*TagNode{}},
+	// todo: reserved tag with attrs
+	// todo: reserved tag and normal tag
 	{"tag with single attribute", `tag -attr="value"`, noError, []*TagNode{{
 		Name: "tag",
 		Attributes: map[string]*AttrNode{
@@ -64,7 +67,7 @@ var parseTests = []struct {
 			"a": {Name: "a", Value: "1"},
 		},
 	}}},
-	{"multiple empty tags", `tag1\ntag2`, noError, []*TagNode{
+	{"multiple empty tags", "tag1\ntag2", noError, []*TagNode{
 		{Name: "tag1"},
 		{Name: "tag2"},
 	}},
@@ -116,23 +119,31 @@ func astEqual(ast1, ast2 []*TagNode) bool {
 	}
 	for i, t1 := range ast1 {
 		t2 := ast2[i]
-		if t1.Name != t2.Name || t1.Body != t2.Body {
+		if t1.String() != t2.String() {
 			return false
-		}
-		if len(t1.Attributes) != len(t2.Attributes) {
-			return false
-		}
-		for name, attr1 := range t1.Attributes {
-			attr2, ok := t2.Attributes[name]
-			if !ok {
-				return false
-			}
-			if attr1.Name != attr2.Name || attr1.Value != attr2.Value {
-				return false
-			}
 		}
 	}
 	return true
+}
+
+func (n *AttrNode) String() string {
+	return fmt.Sprintf("%s=%s", n.Name, n.Value)
+}
+
+func (n *TagNode) String() string {
+	var attrs []string
+	for _, attr := range n.Attributes {
+		attrs = append(attrs, attr.String())
+	}
+	var body string
+	if n.Body != nil {
+		// (%.10q...)
+		body = fmt.Sprintf(" (%s) ", *n.Body)
+	}
+	if len(attrs) > 0 {
+ 		return fmt.Sprintf("%s%s (%s)", n.Name, body, strings.Join(attrs, ","))
+	}
+	return fmt.Sprintf("%s%s ", n.Name, body)
 }
 
 func TestParse(t *testing.T) {
@@ -142,10 +153,7 @@ func TestParse(t *testing.T) {
 		case err == nil && !test.ok:
 			t.Errorf("%q: expected error; got none", test.name)
 		case err != nil && test.ok:
-			t.Errorf("%q: unexpected error: %v (token: %s, tags scanned: %d)", test.name, err, parser.token.val, len(parser.Tags))
-			if len(parser.Tags) > 0 {
-				t.Errorf("Scanned tag: %s", parser.Tags[0].Name)
-			}
+			t.Errorf("%q: unexpected error: %v", test.name, err)
 		case err != nil && !test.ok:
 			// expected error, got one
 			if *debug {
@@ -153,7 +161,7 @@ func TestParse(t *testing.T) {
 			}
 		case !astEqual(test.ast, parser.Tags):
 			// todo: represent expected and actual structures
-			t.Errorf("%s=(%q): failed", test.name, test.input)
+			t.Errorf("%s=(%q): %v", test.name, test.input, parser.Tags)
 		}
 	}
 }

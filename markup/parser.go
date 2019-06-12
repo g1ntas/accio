@@ -46,6 +46,9 @@ type Parser struct {
 	schema *Schema
 }
 
+// parseStateFn represents the state of the parser as a function that returns the next state.
+type parseStateFn func(*Parser) parseStateFn
+
 // parse returns a parse.Parser of the template. If an error is encountered,
 // parsing stops and an empty map is returned with error.
 func Parse(name, text, leftDelim, rightDelim string) (p *Parser, err error) {
@@ -83,71 +86,72 @@ func (p *Parser) parse(text, leftDelim, rightDelim string) (tree *Parser, err er
 	p.Tags = []*TagNode{}
 	p.lex = lex(p.Name, text, leftDelim, rightDelim) // start parsing
 	p.text = text
-	p.parseTemplate()
+	for state := parseTemplate; state != nil; {
+		state = state(p)
+	}
 	p.stop()
 	return p, nil
 }
 
 // parseTemplate is the top-level Parser for a template. It runs to EOF.
-func (p *Parser) parseTemplate() {
+func parseTemplate(p *Parser) parseStateFn {
 	switch token := p.next(); token.typ {
 	case tokenEOF:
-		return
+		return nil
 	case tokenDelimiters:
-		p.parseDelimitersTag()
+		return parseDelimitersTag
 	case tokenIdentifier:
-		p.parseTag()
+		return parseTag
 	case tokenError:
-		p.errorf("%s", token)
+		// panic when getting error on 'next' level
+		return p.errorf("%s", token)
 	default:
-		p.errorf("unexpected %s", token)
+		return p.unexpected()
 	}
 }
 
 // parseTag todo
-func (p *Parser) parseTag() {
+func parseTag(p *Parser) parseStateFn {
 	p.newTag(p.token.val)
 	// consume next whitespace token
 	switch token := p.next(); token.typ {
 	case tokenEOF:
-		return
+		return nil
 	case tokenNewline:
-		p.parseTemplate()
-		return
+		return parseTemplate
 	case tokenSpace:
-		p.parseAttrOrBody()
-		return
+		return parseAttrOrBody
 	default:
-		p.errorf("unexpected %s", token)
+		return p.unexpected()
 	}
 }
 
 // parseDelimitersTag todo
-func (p *Parser) parseDelimitersTag() {
+func parseDelimitersTag(p *Parser) parseStateFn {
 	if len(p.Tags) > 0 {
-		p.errorf("reserved tag %s is not allowed here, it must be defined before all other tags", p.token)
-		return
+		return p.errorf("reserved tag %s is not allowed here, it must be defined before all other tags", p.token)
 	}
 	for {
 		switch token := p.next(); token.typ {
 		case tokenAttrDeclare:
-			p.parseDelimiterAttr()
-			continue
+			return parseDelimiterAttr
 		case tokenSpace:
 			continue
 		case tokenNewline:
+			return parseTemplate
 		case tokenEOF:
-			return
+			return nil
 		case tokenLeftDelim:
-			p.errorf("body is not allowed here", token)
+			return p.errorf("body is not allowed here", token)
 		case tokenError:
-			p.errorf("unexpected %s", token)
+			// todo: handle errors in top-level
+			return p.unexpected()
 		}
 	}
 }
 
 // parseDelimiterAttr todo
-func (p *Parser) parseDelimiterAttr() {
+func parseDelimiterAttr(p *Parser) parseStateFn {
 	name, value := p.scanAttr()
 	if (name == leftDelimiter || name == rightDelimiter) && containsInvisibleChars(value) {
 		p.errorf("attribute %s of the tag %s can not contain invisible characters", name, p.tag.Name)
@@ -155,38 +159,35 @@ func (p *Parser) parseDelimiterAttr() {
 	switch name {
 	case attrDelimitersLeft:
 		p.lex.leftDelim = value
-		return
 	case attrDelimitersRight:
 		p.lex.rightDelim = value
-		return
 	}
+	return parseTemplate
 }
 
 // parseAttrOrBody todo
-func (p *Parser) parseAttrOrBody() {
-	for {
-		switch token := p.next(); token.typ {
-		case tokenSpace:
-			continue
-		case tokenEOF:
-		case tokenNewline:
-			return
-		case tokenAttrDeclare:
-			p.parseAttr()
-		case tokenLeftDelim:
-			p.parseBody()
-			return
-		default:
-			p.errorf("unexpected %s", token)
-		}
+func parseAttrOrBody(p *Parser) parseStateFn {
+	switch token := p.next(); token.typ {
+	case tokenSpace:
+		return parseAttrOrBody // todo: refactor lexer to not return spaces at all, as they won't affect parsing logic anyway, just makes it harder
+	case tokenEOF:
+		return nil
+	case tokenNewline:
+		return parseTemplate
+	case tokenAttrDeclare:
+		return parseAttr
+	case tokenLeftDelim:
+		return parseBody
+	default:
+		return p.unexpected()
 	}
 }
 
 // parseAttr todo
-func (p *Parser) parseAttr() {
+func parseAttr(p *Parser) parseStateFn {
 	name, value := p.scanAttr()
 	if _, exists := p.tag.Attributes[name]; exists {
-		p.errorf("attribute '%s' already exists for this tag", name)
+		return p.errorf("attribute '%s' already exists for this tag", name)
 	}
 	// todo: perform schema validation
 	p.tag.Attributes[name] = &AttrNode{
@@ -194,16 +195,17 @@ func (p *Parser) parseAttr() {
 		Name: name,
 		Value: value,
 	}
+	return parseAttrOrBody
 }
 
 // scanAttr scans and consumes tokens of the attribute which is known to be present
 // and returns it's name and value.
-func (p *Parser) scanAttr() (name string, value string){
+func (p *Parser) scanAttr() (string, string){
 	token := p.next()
 	if token.typ != tokenIdentifier {
 		p.errorf("expected identifier, got %s", token)
 	}
-	name = token.val
+	name := token.val
 	if token = p.next(); token.typ != tokenAssign {
 		p.errorf("expected '=', got %s", token)
 	}
@@ -215,23 +217,30 @@ func (p *Parser) scanAttr() (name string, value string){
 	if err != nil {
 		p.error(err)
 	}
-	return
+	return name, value
 }
 
 // parseBody todo
-func (p *Parser) parseBody() {
+func parseBody(p *Parser) parseStateFn {
+	// todo: lexer can return tokenInlineBody or tokenMultilineBody instead, to reduce parser's complexity
 	token := p.next()
 	if token.typ == tokenNewline {
 		token = p.next()
 	}
 	if token.typ != tokenBody {
-		p.errorf("unexpected %s", token)
+		return p.unexpected()
 	}
-	p.tag.Body = &token.val
+	// todo: use body as structure, instead of as a pointer
+	body := token.val
+	p.tag.Body = &body
 	token = p.next()
-	if token.typ != tokenRightDelim {
-		p.errorf("unexpected %s", token)
+	if token.typ == tokenNewline {
+		token = p.next()
 	}
+	if token.typ != tokenRightDelim {
+		return p.unexpected()
+	}
+	return parseTemplate
 }
 
 // next returns the next token.
@@ -241,19 +250,26 @@ func (p *Parser) next() token {
 }
 
 // errorf formats the error and terminates processing.
-func (p *Parser) errorf(format string, args ...interface{}) {
+func (p *Parser) errorf(format string, args ...interface{}) parseStateFn {
 	format = fmt.Sprintf("template at %s:%d: %s", p.Name, p.token.line, format)
 	panic(fmt.Errorf(format, args...))
+	return nil
 }
 
 // error terminates processing with error.
-func (p *Parser) error(err error) {
-	p.errorf("%s", err)
+func (p *Parser) error(err error) parseStateFn {
+	return p.errorf("%s", err)
+}
+
+// error terminates processing with error.
+func (p *Parser) unexpected() parseStateFn {
+	return p.errorf("unexpected %s in %s", p.token, p.Name)
 }
 
 // newTag todo
 func (p *Parser) newTag(name string) *TagNode {
 	p.tag = &TagNode{Name: name}
+	p.tag.Attributes = make(map[string]*AttrNode)
 	p.Tags = append(p.Tags, p.tag)
 	return p.tag
 }
@@ -264,7 +280,7 @@ func unquoteString(s string) (string, error) {
 	if s[0:1] != "\"" || s[l-1:] != "\"" {
 		return "", fmt.Errorf("value is expected to be surrounded with \" quotes")
 	}
-	return s[1:l], nil
+	return s[1:l-1], nil
 }
 
 // containsInvisibleChars checks whether string contains any character
