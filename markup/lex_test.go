@@ -5,19 +5,19 @@ import (
 	"testing"
 )
 
-var tokenName = map[tokenType]string {
-	tokenError:       "error",
-	tokenEOF:         "EOF",
-	tokenSpace:       "space",
-	tokenNewline:     "newline",
-	tokenIdentifier:  "identifier",
-	tokenLeftDelim:   "left delimiter",
-	tokenRightDelim:  "right delimiter",
-	tokenString:      "string",
-	tokenBody:        "body",
-	tokenAttrDeclare: "-",
-	tokenAssign:      "=",
-	tokenDelimiters:  "delimiters",
+var tokenName = map[tokenType]string{
+	tokenError:         "error",
+	tokenEOF:           "EOF",
+	tokenNewline:       "newline",
+	tokenIdentifier:    "identifier",
+	tokenLeftDelim:     "left delimiter",
+	tokenRightDelim:    "right delimiter",
+	tokenString:        "string",
+	tokenInlineBody:    "inline body",
+	tokenMultilineBody: "multiline body",
+	tokenAttrDeclare:   "-",
+	tokenAssign:        "=",
+	tokenDelimiters:    "delimiters",
 }
 
 func (t tokenType) String() string {
@@ -29,8 +29,8 @@ func (t tokenType) String() string {
 }
 
 type lexTest struct {
-	name string
-	input string
+	name   string
+	input  string
 	tokens []token
 }
 
@@ -45,7 +45,6 @@ var (
 	tEOF         = mkToken(tokenEOF, "")
 	tAssign      = mkToken(tokenAssign, "=")
 	tAttrDeclare = mkToken(tokenAttrDeclare, "-")
-	tSpace       = mkToken(tokenSpace, " ")
 	tNewline     = mkToken(tokenNewline, "\n")
 	tBodyLeft    = mkToken(tokenLeftDelim, "<<")
 	tBodyRight   = mkToken(tokenRightDelim, ">>")
@@ -71,7 +70,6 @@ var lexTests = []lexTest{
 	}},
 	{"tag with single attribute", `tag -attr="value"`, []token{
 		mkToken(tokenIdentifier, "tag"),
-		tSpace,
 		tAttrDeclare,
 		mkToken(tokenIdentifier, "attr"),
 		tAssign,
@@ -80,12 +78,10 @@ var lexTests = []lexTest{
 	}},
 	{"tag with multiple attributes", `tag -attr1="1" -attr2="2"`, []token{
 		mkToken(tokenIdentifier, "tag"),
-		tSpace,
 		tAttrDeclare,
 		mkToken(tokenIdentifier, "attr1"),
 		tAssign,
 		mkToken(tokenString, `"1"`),
-		tSpace,
 		tAttrDeclare,
 		mkToken(tokenIdentifier, "attr2"),
 		tAssign,
@@ -94,7 +90,6 @@ var lexTests = []lexTest{
 	}},
 	{"tag with empty attribute value", `tag -attr=""`, []token{
 		mkToken(tokenIdentifier, "tag"),
-		tSpace,
 		tAttrDeclare,
 		mkToken(tokenIdentifier, "attr"),
 		tAssign,
@@ -103,7 +98,6 @@ var lexTests = []lexTest{
 	}},
 	{"tag and attribute separated by multiple spaces", "tag \t -attr=\"1\"", []token{
 		mkToken(tokenIdentifier, "tag"),
-		mkToken(tokenSpace, " \t "),
 		tAttrDeclare,
 		mkToken(tokenIdentifier, "attr"),
 		tAssign,
@@ -112,12 +106,10 @@ var lexTests = []lexTest{
 	}},
 	{"multiple attribute separated by multiple spaces", "tag -attr=\"1\" \t\t -attr=\"2\"", []token{
 		mkToken(tokenIdentifier, "tag"),
-		tSpace,
 		tAttrDeclare,
 		mkToken(tokenIdentifier, "attr"),
 		tAssign,
 		mkToken(tokenString, `"1"`),
-		mkToken(tokenSpace, " \t\t "),
 		tAttrDeclare,
 		mkToken(tokenIdentifier, "attr"),
 		tAssign,
@@ -126,50 +118,41 @@ var lexTests = []lexTest{
 	}},
 	{"spaces after empty tag", "tag \t\t", []token{
 		mkToken(tokenIdentifier, "tag"),
-		mkToken(tokenSpace, " \t\t"),
 		tEOF,
 	}},
 	{"tag with inline body", `tag << test >>`, []token{
 		mkToken(tokenIdentifier, "tag"),
-		tSpace,
 		tBodyLeft,
-		mkToken(tokenBody, " test "),
+		mkToken(tokenInlineBody, " test "),
 		tBodyRight,
 		tEOF,
 	}},
 	{"tag with multiline body", "tag << \t\n test \n>>", []token{
 		mkToken(tokenIdentifier, "tag"),
-		tSpace,
 		tBodyLeft,
-		tNewline,
-		mkToken(tokenBody, " test "),
-		tNewline,
+		mkToken(tokenMultilineBody, " test "),
 		tBodyRight,
 		tEOF,
 	}},
 	{"tag with attribute and body", `tag -a="1" << test >>`, []token{
 		mkToken(tokenIdentifier, "tag"),
-		tSpace,
 		tAttrDeclare,
 		mkToken(tokenIdentifier, "a"),
 		tAssign,
 		mkToken(tokenString, `"1"`),
-		tSpace,
 		tBodyLeft,
-		mkToken(tokenBody, " test "),
+		mkToken(tokenInlineBody, " test "),
 		tBodyRight,
 		tEOF,
 	}},
 	{"attribute and body separated by multiple spaces", "tag -a=\"1\" \t\t << test >>", []token{
 		mkToken(tokenIdentifier, "tag"),
-		tSpace,
 		tAttrDeclare,
 		mkToken(tokenIdentifier, "a"),
 		tAssign,
 		mkToken(tokenString, `"1"`),
-		mkToken(tokenSpace, " \t\t "),
 		tBodyLeft,
-		mkToken(tokenBody, " test "),
+		mkToken(tokenInlineBody, " test "),
 		tBodyRight,
 		tEOF,
 	}},
@@ -179,9 +162,8 @@ var lexTests = []lexTest{
 		mkToken(tokenIdentifier, "tag2"),
 		tEOF,
 	}},
-	{"multiple tags with attr", `tag1 -a="1"`+"\n"+`tag2`, []token{
+	{"multiple tags with attr", `tag1 -a="1"` + "\n" + `tag2`, []token{
 		mkToken(tokenIdentifier, "tag1"),
-		tSpace,
 		tAttrDeclare,
 		mkToken(tokenIdentifier, "a"),
 		tAssign,
@@ -192,9 +174,8 @@ var lexTests = []lexTest{
 	}},
 	{"multiple tags with inline body", "tag1 <<body>>\ntag2", []token{
 		mkToken(tokenIdentifier, "tag1"),
-		tSpace,
 		tBodyLeft,
-		mkToken(tokenBody, "body"),
+		mkToken(tokenInlineBody, "body"),
 		tBodyRight,
 		tNewline,
 		mkToken(tokenIdentifier, "tag2"),
@@ -202,26 +183,21 @@ var lexTests = []lexTest{
 	}},
 	{"multiple tags with multiline body", "tag1 <<\nbody\n>>\ntag2", []token{
 		mkToken(tokenIdentifier, "tag1"),
-		tSpace,
 		tBodyLeft,
-		tNewline,
-		mkToken(tokenBody, "body"),
-		tNewline,
+		mkToken(tokenMultilineBody, "body"),
 		tBodyRight,
 		tNewline,
 		mkToken(tokenIdentifier, "tag2"),
 		tEOF,
 	}},
-	{"multiple tags with attr and body", `tag1 -a="1" <<body>>`+"\n"+`tag2`, []token{
+	{"multiple tags with attr and body", `tag1 -a="1" <<body>>` + "\n" + `tag2`, []token{
 		mkToken(tokenIdentifier, "tag1"),
-		tSpace,
 		tAttrDeclare,
 		mkToken(tokenIdentifier, "a"),
 		tAssign,
 		mkToken(tokenString, `"1"`),
-		tSpace,
 		tBodyLeft,
-		mkToken(tokenBody, "body"),
+		mkToken(tokenInlineBody, "body"),
 		tBodyRight,
 		tNewline,
 		mkToken(tokenIdentifier, "tag2"),
@@ -229,41 +205,31 @@ var lexTests = []lexTest{
 	}},
 	{"spaces ignored after multiline body left delimiter", "tag << \t \ntest\n>>", []token{
 		mkToken(tokenIdentifier, "tag"),
-		tSpace,
 		tBodyLeft,
-		tNewline,
-		mkToken(tokenBody, "test"),
-		tNewline,
+		mkToken(tokenMultilineBody, "test"),
 		tBodyRight,
 		tEOF,
 	}},
 	{"spaces ignored after inline body right delimiter", "tag <<test>> \t \n", []token{
 		mkToken(tokenIdentifier, "tag"),
-		tSpace,
 		tBodyLeft,
-		mkToken(tokenBody, "test"),
+		mkToken(tokenInlineBody, "test"),
 		tBodyRight,
 		tNewline,
 		tEOF,
 	}},
 	{"spaces ignored after multiline body right delimiter", "tag <<\ntest\n>> \t \n", []token{
 		mkToken(tokenIdentifier, "tag"),
-		tSpace,
 		tBodyLeft,
-		tNewline,
-		mkToken(tokenBody, "test"),
-		tNewline,
+		mkToken(tokenMultilineBody, "test"),
 		tBodyRight,
 		tNewline,
 		tEOF,
 	}},
 	{"delimiters within multiline body", "tag <<\n<<>>\n>>", []token{
 		mkToken(tokenIdentifier, "tag"),
-		tSpace,
 		tBodyLeft,
-		tNewline,
-		mkToken(tokenBody, "<<>>"),
-		tNewline,
+		mkToken(tokenMultilineBody, "<<>>"),
 		tBodyRight,
 		tEOF,
 	}},
@@ -281,94 +247,81 @@ var lexTests = []lexTest{
 	{"dash at the end of the tag", "tag-", []token{
 		mkToken(tokenError, "invalid character U+002D '-' at the end of the identifier"),
 	}},
-	{"tag must start on newline",  " tag", []token{
+	{"tag must start on newline", " tag", []token{
 		mkToken(tokenError, "misplaced character U+0074 't', tag identifier must start on the newline"),
 	}},
-	{"invalid char at the start of attr name",  `tag -*="test"`, []token{
+	{"invalid char at the start of attr name", `tag -*="test"`, []token{
 		mkToken(tokenIdentifier, "tag"),
-		tSpace,
 		tAttrDeclare,
 		mkToken(tokenError, "invalid character U+002A '*' within attribute name, valid ascii letter expected"),
 	}},
-	{"dash at the start of attr name",  `tag --attr="test"`, []token{
+	{"dash at the start of attr name", `tag --attr="test"`, []token{
 		mkToken(tokenIdentifier, "tag"),
-		tSpace,
 		tAttrDeclare,
 		mkToken(tokenError, "invalid character U+002D '-' within attribute name, valid ascii letter expected"),
 	}},
-	{"invalid char within attr name",  `tag -at*r="test"`, []token{
+	{"invalid char within attr name", `tag -at*r="test"`, []token{
 		mkToken(tokenIdentifier, "tag"),
-		tSpace,
 		tAttrDeclare,
 		mkToken(tokenIdentifier, "at"),
 		mkToken(tokenError, "invalid character U+002A '*' after the attribute, expected U+003D '=' instead"),
 	}},
-	{"dash at the end of attr",  `tag -attr-="test"`, []token{
+	{"dash at the end of attr", `tag -attr-="test"`, []token{
 		mkToken(tokenIdentifier, "tag"),
-		tSpace,
 		tAttrDeclare,
 		mkToken(tokenError, "invalid character U+002D '-' at the end of the identifier"),
 	}},
-	{"attr without assignment",  `tag -attr`, []token{
+	{"attr without assignment", `tag -attr`, []token{
 		mkToken(tokenIdentifier, "tag"),
-		tSpace,
 		tAttrDeclare,
 		mkToken(tokenIdentifier, "attr"),
 		mkToken(tokenError, "invalid character U+FFFFFFFFFFFFFFFF after the attribute, expected U+003D '=' instead"),
 	}},
-	{"attr without value",  `tag -attr=`, []token{
+	{"attr without value", `tag -attr=`, []token{
 		mkToken(tokenIdentifier, "tag"),
-		tSpace,
 		tAttrDeclare,
 		mkToken(tokenIdentifier, "attr"),
 		tAssign,
 		mkToken(tokenError, "invalid character U+FFFFFFFFFFFFFFFF after the attribute assignment, expected U+0022 '\"' instead"),
 	}},
-	{"unclosed attr quotes",  `tag -attr="`, []token{
+	{"unclosed attr quotes", `tag -attr="`, []token{
 		mkToken(tokenIdentifier, "tag"),
-		tSpace,
 		tAttrDeclare,
 		mkToken(tokenIdentifier, "attr"),
 		tAssign,
 		mkToken(tokenError, "unclosed attribute value, quote '\"' at the end expected"),
 	}},
-	{"delimiter after tag without space",  `tag<<>>`, []token{
+	{"delimiter after tag without space", `tag<<>>`, []token{
 		mkToken(tokenError, "invalid character U+003C '<' within tag identifier, space or newline expected"),
 	}},
-	{"unmatched inline body delimiter",  `tag << >`, []token{
+	{"unmatched inline body delimiter", `tag << >`, []token{
 		mkToken(tokenIdentifier, "tag"),
-		tSpace,
 		tBodyLeft,
 		mkToken(tokenError, "unclosed tag body, ending delimiter \">>\" expected at the end of body"),
 	}},
-	{"unmatched multiline body delimiter",  "tag <<\n\n>", []token{
+	{"unmatched multiline body delimiter", "tag <<\n\n>", []token{
 		mkToken(tokenIdentifier, "tag"),
-		tSpace,
 		tBodyLeft,
-		tNewline,
 		mkToken(tokenError, "unclosed tag body, ending delimiter \">>\" expected on newline at the end of the body"),
 	}},
-	{"invalid char after body right delimiter",  "tag <<>>>", []token{
+	{"invalid char after body right delimiter", "tag <<>>>", []token{
 		mkToken(tokenIdentifier, "tag"),
-		tSpace,
 		tBodyLeft,
-		mkToken(tokenBody, ""),
+		mkToken(tokenInlineBody, ""),
 		tBodyRight,
 		mkToken(tokenError, "invalid character U+003E '>' after right body delimiter"),
 	}},
-	{"whitespace before multiline right delimiter",  "tag <<\n\n\t>>", []token{
+	{"whitespace before multiline right delimiter", "tag <<\n\n\t>>", []token{
 		mkToken(tokenIdentifier, "tag"),
-		tSpace,
 		tBodyLeft,
-		tNewline,
 		mkToken(tokenError, "unclosed tag body, ending delimiter \">>\" expected on newline at the end of the body"),
 	}},
-	{"left delimiter on newline",  "tag\n<<", []token{
+	{"left delimiter on newline", "tag\n<<", []token{
 		mkToken(tokenIdentifier, "tag"),
 		tNewline,
 		mkToken(tokenError, "invalid character U+003C '<'"),
 	}},
-	{"attr on newline",  "tag\n-attr", []token{
+	{"attr on newline", "tag\n-attr", []token{
 		mkToken(tokenIdentifier, "tag"),
 		tNewline,
 		mkToken(tokenError, "invalid character U+002D '-'"),
@@ -421,37 +374,29 @@ func TestLex(t *testing.T) {
 var lexDelimTests = []lexTest{
 	{"tag with inline body", `tag {{test}`, []token{
 		mkToken(tokenIdentifier, "tag"),
-		tSpace,
 		tCustomBodyLeft,
-		mkToken(tokenBody, "test"),
+		mkToken(tokenInlineBody, "test"),
 		tCustomBodyRight,
 		tEOF,
 	}},
 	{"tag with empty inline body", `tag {{}`, []token{
 		mkToken(tokenIdentifier, "tag"),
-		tSpace,
 		tCustomBodyLeft,
-		mkToken(tokenBody, ""),
+		mkToken(tokenInlineBody, ""),
 		tCustomBodyRight,
 		tEOF,
 	}},
 	{"tag with multiline body", "tag {{ \t\ntest\n}", []token{
 		mkToken(tokenIdentifier, "tag"),
-		tSpace,
 		tCustomBodyLeft,
-		tNewline,
-		mkToken(tokenBody, "test"),
-		tNewline,
+		mkToken(tokenMultilineBody, "test"),
 		tCustomBodyRight,
 		tEOF,
 	}},
 	{"tag with empty multiline body", "tag {{ \t\n\n}", []token{
 		mkToken(tokenIdentifier, "tag"),
-		tSpace,
 		tCustomBodyLeft,
-		tNewline,
-		mkToken(tokenBody, ""),
-		tNewline,
+		mkToken(tokenMultilineBody, ""),
 		tCustomBodyRight,
 		tEOF,
 	}},
@@ -461,10 +406,9 @@ var lexDelimTests = []lexTest{
 }
 
 var (
-	tCustomBodyLeft = mkToken(tokenLeftDelim, "{{")
+	tCustomBodyLeft  = mkToken(tokenLeftDelim, "{{")
 	tCustomBodyRight = mkToken(tokenRightDelim, "}")
 )
-
 
 // Test bodies with different delimiters.
 func TestDelims(t *testing.T) {
@@ -480,16 +424,12 @@ var lexPosTests = []lexTest{
 	{"empty", "", []token{{tokenEOF, 0, "", 1}}},
 	{"multiline tag", "tag -attr=\"1\" <<\n body\n>>", []token{
 		{tokenIdentifier, 0, "tag", 1},
-		{tokenSpace, 3, " ", 1},
 		{tokenAttrDeclare, 4, "-", 1},
 		{tokenIdentifier, 5, "attr", 1},
 		{tokenAssign, 9, "=", 1},
 		{tokenString, 10, `"1"`, 1},
-		{tokenSpace, 13, " ", 1},
 		{tokenLeftDelim, 14, "<<", 1},
-		{tokenNewline, 16, "\n", 1},
-		{tokenBody, 17, " body", 2},
-		{tokenNewline, 22, "\n", 2},
+		{tokenMultilineBody, 17, " body", 2},
 		{tokenRightDelim, 23, ">>", 3},
 		{tokenEOF, 25, "", 3},
 	}},

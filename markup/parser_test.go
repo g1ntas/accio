@@ -9,8 +9,11 @@ import (
 
 var debug = flag.Bool("debug", false, "show the errors produced by the main tests")
 
-func body(s string) *string{
-	return &s
+func inlineBody(s string) *Body{
+	return &Body{s, true}
+}
+func multilineBody(s string) *Body{
+	return &Body{s, false}
 }
 
 const (
@@ -54,15 +57,15 @@ var parseTests = []struct {
 	}}},
 	{"tag with inline body", `tag << test >>`, noError, []*TagNode{{
 		Name: "tag",
-		Body: body(" test "),
+		Body: inlineBody(" test "),
 	}}},
 	{"tag with multiline body", "tag <<\ntest\n>>", noError, []*TagNode{{
 		Name: "tag",
-		Body: body("test"),
+		Body: multilineBody("test"),
 	}}},
 	{"tag with attribute and body", `tag -a="1" <<test>>`, noError, []*TagNode{{
 		Name: "tag",
-		Body: body("test"),
+		Body: inlineBody("test"),
 		Attributes: map[string]*AttrNode{
 			"a": {Name: "a", Value: "1"},
 		},
@@ -75,14 +78,14 @@ var parseTests = []struct {
 		`tag -attr="1" <<this is first body>>` + "\n" + `tag -attr="2" <<this is second body>>`, noError, []*TagNode{
 		{
 			Name: "tag",
-			Body: body("this is first body"),
+			Body: inlineBody("this is first body"),
 			Attributes: map[string]*AttrNode{
 				"attr": {Name: "attr", Value: "1"},
 			},
 		},
 		{
 			Name: "tag",
-			Body: body("this is second body"),
+			Body: inlineBody("this is second body"),
 			Attributes: map[string]*AttrNode{
 				"attr": {Name: "attr", Value: "2"},
 			},
@@ -135,15 +138,18 @@ func (n *TagNode) String() string {
 	for _, attr := range n.Attributes {
 		attrs = append(attrs, attr.String())
 	}
-	var body string
-	if n.Body != nil {
-		// (%.10q...)
-		body = fmt.Sprintf(" (%s) ", *n.Body)
-	}
+	repr := n.Name
 	if len(attrs) > 0 {
- 		return fmt.Sprintf("%s%s (%s)", n.Name, body, strings.Join(attrs, ","))
+ 		repr = fmt.Sprintf("%s (%s)", repr, strings.Join(attrs, ","))
 	}
-	return fmt.Sprintf("%s%s ", n.Name, body)
+	if n.Body != nil {
+		if n.Body.Inline {
+			repr = fmt.Sprintf("%s -<<%s>>- ", repr, n.Body.Content)
+		} else {
+			repr = fmt.Sprintf("%s <<%s>> ", repr, n.Body.Content)
+		}
+	}
+	return fmt.Sprintf("{%s}", repr)
 }
 
 func TestParse(t *testing.T) {
@@ -160,8 +166,7 @@ func TestParse(t *testing.T) {
 				fmt.Printf("%s: %s\n\t%s\n", test.name, test.input, err)
 			}
 		case !astEqual(test.ast, parser.Tags):
-			// todo: represent expected and actual structures
-			t.Errorf("%s=(%q): %v", test.name, test.input, parser.Tags)
+			t.Errorf("%s=(%q):\ngot\n\t%s\nexpected\n\t%s", test.name, test.input, parser.Tags, test.ast)
 		}
 	}
 }

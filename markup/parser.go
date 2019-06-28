@@ -15,8 +15,13 @@ const (
 // TagNode todo
 type TagNode struct {
 	Attributes map[string]*AttrNode
-	Body *string
+	Body *Body
 	Name string
+}
+
+type Body struct {
+	Content string
+	Inline bool
 }
 
 // AttrNode todo
@@ -113,14 +118,20 @@ func parseTemplate(p *Parser) parseStateFn {
 // parseTag todo
 func parseTag(p *Parser) parseStateFn {
 	p.newTag(p.token.val)
-	// consume next whitespace token
+	return parseAttrOrBody
+}
+
+// parseAttrOrBody todo
+func parseAttrOrBody(p *Parser) parseStateFn {
 	switch token := p.next(); token.typ {
 	case tokenEOF:
 		return nil
 	case tokenNewline:
 		return parseTemplate
-	case tokenSpace:
-		return parseAttrOrBody
+	case tokenAttrDeclare:
+		return parseAttr
+	case tokenLeftDelim:
+		return parseBody
 	default:
 		return p.unexpected()
 	}
@@ -135,8 +146,6 @@ func parseDelimitersTag(p *Parser) parseStateFn {
 		switch token := p.next(); token.typ {
 		case tokenAttrDeclare:
 			return parseDelimiterAttr
-		case tokenSpace:
-			continue
 		case tokenNewline:
 			return parseTemplate
 		case tokenEOF:
@@ -163,24 +172,6 @@ func parseDelimiterAttr(p *Parser) parseStateFn {
 		p.lex.rightDelim = value
 	}
 	return parseTemplate
-}
-
-// parseAttrOrBody todo
-func parseAttrOrBody(p *Parser) parseStateFn {
-	switch token := p.next(); token.typ {
-	case tokenSpace:
-		return parseAttrOrBody // todo: refactor lexer to not return spaces at all, as they won't affect parsing logic anyway, just makes it harder
-	case tokenEOF:
-		return nil
-	case tokenNewline:
-		return parseTemplate
-	case tokenAttrDeclare:
-		return parseAttr
-	case tokenLeftDelim:
-		return parseBody
-	default:
-		return p.unexpected()
-	}
 }
 
 // parseAttr todo
@@ -222,25 +213,27 @@ func (p *Parser) scanAttr() (string, string){
 
 // parseBody todo
 func parseBody(p *Parser) parseStateFn {
-	// todo: lexer can return tokenInlineBody or tokenMultilineBody instead, to reduce parser's complexity
-	token := p.next()
-	if token.typ == tokenNewline {
-		token = p.next()
-	}
-	if token.typ != tokenBody {
+	p.tag.Body = &Body{}
+	switch token := p.next(); token.typ {
+	case tokenInlineBody:
+		p.tag.Body.Inline = true
+		fallthrough
+	case tokenMultilineBody:
+		p.tag.Body.Content = token.val
+	default:
 		return p.unexpected()
 	}
-	// todo: use body as structure, instead of as a pointer
-	body := token.val
-	p.tag.Body = &body
-	token = p.next()
-	if token.typ == tokenNewline {
-		token = p.next()
-	}
-	if token.typ != tokenRightDelim {
+	if token := p.next(); token.typ != tokenRightDelim {
 		return p.unexpected()
 	}
-	return parseTemplate
+	switch token := p.next(); token.typ {
+	case tokenNewline:
+		return parseTemplate
+	case tokenEOF:
+		return nil
+	default:
+		return p.unexpected()
+	}
 }
 
 // next returns the next token.

@@ -16,13 +16,13 @@ type tokenType int
 const (
 	tokenError       tokenType = iota // error occurred; value is text of error
 	tokenEOF                          // end of file
-	tokenSpace                        // single space
 	tokenNewline                      // newline
 	tokenIdentifier                   // identity for tags and attributes
 	tokenLeftDelim                    // body opening delimiter
 	tokenRightDelim                   // body closing delimiter
 	tokenString                       // string literal
-	tokenBody                         // raw tag body text between left and right delimiters
+	tokenInlineBody                   // raw inline tag body text between left and right delimiters
+	tokenMultilineBody                // raw multiline tag body text between left and right delimiters
 	tokenAttrDeclare                  // dash ('-') introducing an attribute declaration
 	tokenAssign                       // equals sign ('=') introducing an attribute assignment
 	tokenDelimiters                   // reserved tag keyword 'delimiters'
@@ -293,13 +293,13 @@ func lexAfterTag(lx *lexer) lexStateFn {
 	}
 }
 
-// lexSpace scans a sequence of space characters.
+// lexSpace consumes a sequence of space characters.
 // One space has already been seen.
 func lexSpace(lx *lexer) lexStateFn {
 	for isSpace(lx.next()) {
 	}
 	lx.backup()
-	lx.emit(tokenSpace)
+	lx.ignore()
 	return lexAfterTag
 }
 
@@ -356,15 +356,15 @@ func lexBodyLeftDelimiter(lx *lexer) lexStateFn {
 func lexBody(lx *lexer) lexStateFn {
 	for {
 		switch r := lx.next(); {
-		case isLineTerminator(r):
+		case isLineTerminator(r): // consume line terminator and all spaces
 			lx.backup()
-			lx.ignore() // ignore all spaces between left delimiter and newline
+			lx.ignore()
 			lx.next()
-			lx.emit(tokenNewline)
+			lx.ignore()
 			return lexMultilineBody
 		case lx.atString(lx.rightDelim):
 			lx.backup()
-			lx.emit(tokenBody)
+			lx.emit(tokenInlineBody)
 			return lexBodyRightDelimiter
 		case r == eof:
 			return lx.errorf("unclosed tag body, ending delimiter \"%s\" expected at the end of body", lx.rightDelim)
@@ -384,9 +384,9 @@ func lexMultilineBody(lx *lexer) lexStateFn {
 			return lx.errorf("unclosed tag body, ending delimiter \"%s\" expected on newline at the end of the body", lx.rightDelim)
 		}
 	}
-	lx.emit(tokenBody)
+	lx.emit(tokenMultilineBody)
 	lx.next()
-	lx.emit(tokenNewline)
+	lx.ignore() // newline
 	return lexBodyRightDelimiter
 }
 
