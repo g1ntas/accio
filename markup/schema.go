@@ -27,48 +27,55 @@ partial:
 		{ name: trim-indentation, unique: false, pattern: (true|false) }
 */
 
-type validatorFn func(string) bool
-
 type Schema struct {
 	Tags map[string]*TagSchema
 }
 
+func (p *Parser) validate(n *TagNode) {
+
+}
+
+type Rule interface {
+	Validate() bool
+	Error() error
+}
+
 type TagSchema struct {
 	HasBody bool
-	Multiple bool
+	Unique bool
 	Attributes map[string]*AttrSchema
 }
 
 type AttrSchema struct {
 	Unique bool
-	Validators []validatorFn
+	Rules []*Rule
 }
 
 var schema = &Schema{
 	Tags: map[string]*TagSchema{
 		"filename": {
 			HasBody: true,
-			Multiple: false,
+			Unique: false,
 		},
 		"variable": {
 			HasBody: true,
-			Multiple: true,
+			Unique: true,
 			Attributes: map[string]*AttrSchema{
 				"name": {Unique: true},
 			},
 		},
 		"template": {
 			HasBody: true,
-			Multiple: false,
+			Unique: false,
 			Attributes: map[string]*AttrSchema{
 				"left-delimiter": {Unique: false},
 				"right-delimiter": {Unique: false},
-				"trim-indentation": {Unique: false, Validators: []validatorFn{IsBoolean}},
+				//"trim-indentation": {Unique: false, Validators: []validatorFn{IsBoolean}},
 			},
 		},
 		"partial": {
 			HasBody: true,
-			Multiple: false,
+			Unique: false,
 			Attributes: map[string]*AttrSchema{
 				"name": {Unique: true},
 				"left-delimiter": {Unique: false},

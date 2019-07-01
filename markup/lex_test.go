@@ -68,6 +68,14 @@ var lexTests = []lexTest{
 		tDelimiters,
 		tEOF,
 	}},
+	{"reserved tag name with attr", `delimiters -attr="value"`, []token{
+		tDelimiters,
+		tAttrDeclare,
+		mkToken(tokenIdentifier, "attr"),
+		tAssign,
+		mkToken(tokenString, `"value"`),
+		tEOF,
+	}},
 	{"tag with single attribute", `tag -attr="value"`, []token{
 		mkToken(tokenIdentifier, "tag"),
 		tAttrDeclare,

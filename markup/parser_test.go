@@ -106,9 +106,6 @@ tag [[
 		{
 			Name: "tag",
 			Body: multilineBody("  body here"),
-			Attributes: map[string]*AttrNode{
-				"attr": {Name: "attr", Value: "1"},
-			},
 		},
 	}},
 	{"delimiters tag | no attrs", "delimiters", hasError, []*TagNode{}},

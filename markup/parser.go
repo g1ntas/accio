@@ -117,17 +117,30 @@ func parseTemplate(p *Parser) parseStateFn {
 
 // parseTag todo
 func parseTag(p *Parser) parseStateFn {
-	p.newTag(p.token.val)
+	p.tag = &TagNode{Name: p.token.val}
+	p.tag.Attributes = make(map[string]*AttrNode)
 	return parseAttrOrBody
+}
+
+func finishParsingTag(p *Parser) parseStateFn {
+	// todo: perform schema validation
+	p.Tags = append(p.Tags, p.tag)
+	p.tag = nil
+	switch p.token.typ {
+	case tokenEOF:
+		return nil
+	case tokenNewline:
+		return parseTemplate
+	default:
+		return p.unexpected()
+	}
 }
 
 // parseAttrOrBody todo
 func parseAttrOrBody(p *Parser) parseStateFn {
 	switch token := p.next(); token.typ {
-	case tokenEOF:
-		return nil
-	case tokenNewline:
-		return parseTemplate
+	case tokenEOF, tokenNewline:
+		return finishParsingTag
 	case tokenAttrDeclare:
 		return parseAttr
 	case tokenLeftDelim:
@@ -143,39 +156,30 @@ func parseDelimitersTag(p *Parser) parseStateFn {
 		return p.errorf("reserved tag %s is not allowed here, it must be defined before all other tags", p.token)
 	}
 	return parseDelimiterAttrs
-	for {
-		switch token := p.next(); token.typ {
-		case tokenAttrDeclare:
-		case tokenNewline:
-			return parseTemplate
-		case tokenEOF:
-			return nil
-		case tokenLeftDelim:
-			return p.errorf("body is not allowed here", token)
-		case tokenError:
-			// todo: handle errors in top-level
-			return p.unexpected()
-		}
-	}
 }
 
 // parseDelimiterAttr todo
 func parseDelimiterAttrs(p *Parser) parseStateFn {
-	for t := p.next(); t.typ == tokenAttrDeclare; {
-		switch name, value := p.scanAttr(); name {
-		case attrDelimitersLeft:
-			p.lex.leftDelim = value
-		case attrDelimitersRight:
-			p.lex.rightDelim = value
-		default:
-			return p.unexpected() // todo: unexpected attr error
+	attrs := make(map[string]string, 2)
+	for p.next().typ == tokenAttrDeclare {
+		name, value := p.scanAttr()
+		if name != attrDelimitersLeft && name != attrDelimitersRight {
+			return p.errorf("unexpected attribute '%s'", name)
 		}
+		if _, ok := attrs[name]; ok {
+			return p.errorf("attribute '%s' is already defined", name)
+		}
+		if containsInvisibleChars(value) {
+			return p.errorf("attribute '%s' must not contain any invisible character")
+		}
+		attrs[name] = value
 	}
-	if containsInvisibleChars(p.lex.leftDelim) {
-		return p.errorf("left delimiter must be set and contain at least one visible character")
+	var ok bool
+	if p.lex.leftDelim, ok = attrs[attrDelimitersLeft]; !ok {
+		return p.errorf("missing attribute '%s'", attrDelimitersLeft)
 	}
-	if containsInvisibleChars(p.lex.rightDelim) {
-		return p.errorf("left delimiter must be set and contain at least one visible character")
+	if p.lex.rightDelim, ok = attrs[attrDelimitersRight]; !ok {
+		return p.errorf("missing attribute '%s'", attrDelimitersRight)
 	}
 	return parseTemplate
 }
@@ -186,7 +190,6 @@ func parseAttr(p *Parser) parseStateFn {
 	if _, exists := p.tag.Attributes[name]; exists {
 		return p.errorf("attribute '%s' already exists for this tag", name)
 	}
-	// todo: perform schema validation
 	p.tag.Attributes[name] = &AttrNode{
 		Tag: p.tag,
 		Name: name,
@@ -197,7 +200,7 @@ func parseAttr(p *Parser) parseStateFn {
 
 // scanAttr scans and consumes tokens of the attribute which is known to be present
 // and returns it's name and value.
-func (p *Parser) scanAttr() (string, string){
+func (p *Parser) scanAttr() (string, string) {
 	token := p.next()
 	if token.typ != tokenIdentifier {
 		p.errorf("expected identifier, got %s", token)
@@ -233,10 +236,8 @@ func parseBody(p *Parser) parseStateFn {
 		return p.unexpected()
 	}
 	switch token := p.next(); token.typ {
-	case tokenNewline:
-		return parseTemplate
-	case tokenEOF:
-		return nil
+	case tokenEOF, tokenNewline:
+		return finishParsingTag
 	default:
 		return p.unexpected()
 	}
@@ -265,14 +266,6 @@ func (p *Parser) unexpected() parseStateFn {
 	return p.errorf("unexpected %s in %s", p.token, p.Name)
 }
 
-// newTag todo
-func (p *Parser) newTag(name string) *TagNode {
-	p.tag = &TagNode{Name: name}
-	p.tag.Attributes = make(map[string]*AttrNode)
-	p.Tags = append(p.Tags, p.tag)
-	return p.tag
-}
-
 // unquoteString removes double quote characters surrounding the string.
 func unquoteString(s string) (string, error) {
 	l := len(s)
@@ -286,9 +279,6 @@ func unquoteString(s string) (string, error) {
 // which is not visible to the human eye, even if it consumes space at
 // the screen.
 func containsInvisibleChars(s string) bool {
-	if len(s) == 0 {
-		return false
-	}
 	for _, r := range s {
 		if !unicode.IsGraphic(r) || unicode.IsSpace(r) {
 			return true
