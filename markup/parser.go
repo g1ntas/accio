@@ -142,10 +142,10 @@ func parseDelimitersTag(p *Parser) parseStateFn {
 	if len(p.Tags) > 0 {
 		return p.errorf("reserved tag %s is not allowed here, it must be defined before all other tags", p.token)
 	}
+	return parseDelimiterAttrs
 	for {
 		switch token := p.next(); token.typ {
 		case tokenAttrDeclare:
-			return parseDelimiterAttr
 		case tokenNewline:
 			return parseTemplate
 		case tokenEOF:
@@ -160,16 +160,22 @@ func parseDelimitersTag(p *Parser) parseStateFn {
 }
 
 // parseDelimiterAttr todo
-func parseDelimiterAttr(p *Parser) parseStateFn {
-	name, value := p.scanAttr()
-	if (name == leftDelimiter || name == rightDelimiter) && containsInvisibleChars(value) {
-		p.errorf("attribute %s of the tag %s can not contain invisible characters", name, p.tag.Name)
+func parseDelimiterAttrs(p *Parser) parseStateFn {
+	for t := p.next(); t.typ == tokenAttrDeclare; {
+		switch name, value := p.scanAttr(); name {
+		case attrDelimitersLeft:
+			p.lex.leftDelim = value
+		case attrDelimitersRight:
+			p.lex.rightDelim = value
+		default:
+			return p.unexpected() // todo: unexpected attr error
+		}
 	}
-	switch name {
-	case attrDelimitersLeft:
-		p.lex.leftDelim = value
-	case attrDelimitersRight:
-		p.lex.rightDelim = value
+	if containsInvisibleChars(p.lex.leftDelim) {
+		return p.errorf("left delimiter must be set and contain at least one visible character")
+	}
+	if containsInvisibleChars(p.lex.rightDelim) {
+		return p.errorf("left delimiter must be set and contain at least one visible character")
 	}
 	return parseTemplate
 }
@@ -280,6 +286,9 @@ func unquoteString(s string) (string, error) {
 // which is not visible to the human eye, even if it consumes space at
 // the screen.
 func containsInvisibleChars(s string) bool {
+	if len(s) == 0 {
+		return false
+	}
 	for _, r := range s {
 		if !unicode.IsGraphic(r) || unicode.IsSpace(r) {
 			return true

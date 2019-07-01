@@ -33,9 +33,6 @@ var parseTests = []struct {
 	{"comments", "# this is a comment", noError, emptyAst},
 	{"multiline comments", "# line1\n#line2", noError, emptyAst},
 	{"empty tag", "tag", noError, []*TagNode{{Name: "tag"}}},
-	{"reserved tag", "delimiters", noError, []*TagNode{}},
-	// todo: reserved tag with attrs
-	// todo: reserved tag and normal tag
 	{"tag with single attribute", `tag -attr="value"`, noError, []*TagNode{{
 		Name: "tag",
 		Attributes: map[string]*AttrNode{
@@ -91,6 +88,34 @@ var parseTests = []struct {
 			},
 		},
 	}},
+
+	// reserved delimiters tag
+	{"delimiters tag | inline body with custom delimiters", `
+delimiters -left="{" -right="}"
+tag {body here}`, noError, []*TagNode{
+		{
+			Name: "tag",
+			Body: inlineBody("body here"),
+		},
+	}},
+	{"delimiters tag | multiline body with custom delimiters", `
+delimiters -left="[[" -right="]]"
+tag [[
+  body here
+]]`, noError, []*TagNode{
+		{
+			Name: "tag",
+			Body: multilineBody("  body here"),
+			Attributes: map[string]*AttrNode{
+				"attr": {Name: "attr", Value: "1"},
+			},
+		},
+	}},
+	{"delimiters tag | no attrs", "delimiters", hasError, []*TagNode{}},
+	{"delimiters tag | only left attr", `delimiters -left="{"`, hasError, []*TagNode{}},
+	{"delimiters tag | only right attr", `delimiters -right="}"`, hasError, []*TagNode{}},
+	{"delimiters tag | invalid attr", `delimiters -attr="test"`, hasError, []*TagNode{}},
+
 
 	// errors fired in lexer
 	{"invalid character", "*", hasError, emptyAst},
