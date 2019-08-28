@@ -12,3 +12,7 @@ func ParseGenerators(repo *LocalRepository) {
 	// todo: parse config and create Generator struct from it
 	// todo: return all parsed generators
 }
+
+func ParseGeneratorConfig(path string) {
+
+}
