@@ -1,53 +1,41 @@
 package main
 
-type registry struct {
-	Repos []*LocalRepository
+import (
+	"os"
+	"path/filepath"
+)
+
+type fileSystemRepository struct {
+	Origin string `json:"origin"`
+	Dest string `json:"destination"`
+	Generators map[string]*Generator `json:"generators"`
 }
 
-type LocalRepository struct {
-	origin string
-}
-
-// registry := loadRegistry(registryPath)
 // repo := NewLocalRepo("~/code/symfony-crud")
-// repo.Clone(registry.Dir)
+// repo.Parse()
 // registry.add(repo)
-// generators = ParseGenerators(repo)
-// saveRegistry(registry)
+// registry.Save()
 
-var Registry *registry
+func NewLocalRepo(origin string) *fileSystemRepository {
+	// todo: check origin is existing directory
+	// todo: expand origin to absolute path and set as Dest
+	return &fileSystemRepository{Origin: origin, Dest: origin}
+}
 
-func init() {
-	// todo: load or create registry
-	var err error
-	Registry, err = loadRegistry("")
+func (r *fileSystemRepository) Parse() error {
+	err := filepath.Walk("", processRepositoryPath)
 	if err != nil {
-		// todo: do sth
+		return err
 	}
+	// todo: check if `.accio.json` exist in root directory
+	// 		todo: if so, parse config and add generator to repository
+	// todo: if no, walk over directory looking for 1st-level subdirectories with `.accio.json` config file
+		// todo: parse each config and save generator to repo
 }
 
-func loadRegistry(path string) (*registry, error) {
-	// todo: check if file exists
-	// todo: 	create if doesnt
-	// todo: 	load data if it does
-}
-
-func (r *registry) Save() error {
-
-}
-
-func (r *registry) add(repo *LocalRepository) {
-	r.Repos = append(r.Repos, repo)
-}
-
-func NewLocalRepo(origin string) *LocalRepository {
-	return &LocalRepository{origin: origin}
-}
-
-func (r *LocalRepository) Origin() string {
-	return r.origin
-}
-
-func (r *LocalRepository) Dest() string {
-	return r.origin
+func processRepositoryPath(path string, info os.FileInfo, err error) error {
+	if err != nil {
+		return err
+	}
+	return nil
 }
