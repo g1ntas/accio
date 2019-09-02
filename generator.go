@@ -19,7 +19,7 @@ func newGenerator(dir string) *Generator {
 	return &Generator{Dest: dir}
 }
 
-func parseGeneratorConfig(path string) (*Generator, error) {
+func parseConfig(path string) (*Generator, error) {
 	b, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err

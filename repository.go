@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 )
@@ -11,31 +12,56 @@ type fileSystemRepository struct {
 	Generators map[string]*Generator `json:"generators"`
 }
 
+var errCfgIsDir = errors.New("config path is a directory")
+
 // repo := NewLocalRepo("~/code/symfony-crud")
 // repo.Parse()
 // registry.add(repo)
 // registry.Save()
 
-func NewLocalRepo(origin string) *fileSystemRepository {
+func NewFileSystemRepository(origin string) *fileSystemRepository {
 	// todo: check origin is existing directory
 	// todo: expand origin to absolute path and set as Dest
 	return &fileSystemRepository{Origin: origin, Dest: origin}
 }
 
 func (r *fileSystemRepository) Parse() error {
-	err := filepath.Walk("", processRepositoryPath)
-	if err != nil {
-		return err
-	}
-	// todo: check if `.accio.json` exist in root directory
-	// 		todo: if so, parse config and add generator to repository
-	// todo: if no, walk over directory looking for 1st-level subdirectories with `.accio.json` config file
-		// todo: parse each config and save generator to repo
-}
-
-func processRepositoryPath(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(r.Dest, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		gen, err := parseDir(path)
+		// todo: should it be more strict and instead forbid missing config?
+		if err != nil && err != errCfgIsDir && !os.IsNotExist(err) {
+			return err
+		}
+		if err == nil {
+			r.addGenerator(gen)
+		}
+		// if path is a root directory, scan one level deeper
+		if path == r.Dest{
+			return nil
+		}
+		return filepath.SkipDir
+	})
 	if err != nil {
 		return err
 	}
 	return nil
+}
+
+func (r *fileSystemRepository) addGenerator(g *Generator) {
+	r.Generators[g.Name] = g
+}
+
+func parseDir(path string) (*Generator, error) {
+	cfgPath := filepath.Join(path, ConfigFilename)
+	f, err := os.Stat(cfgPath)
+	if err != nil {
+		return nil, err
+	}
+	if f.IsDir() {
+		return nil, errCfgIsDir
+	}
+	return parseConfig(cfgPath)
 }
