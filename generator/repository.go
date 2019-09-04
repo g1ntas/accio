@@ -1,14 +1,13 @@
-package repository
+package generator
 
 import (
-	"github.com/g1ntas/accio/generator"
 	"os"
 	"path/filepath"
 )
 
 type FileSystemRepository struct {
 	Path       string
-	Generators map[string]*generator.Generator
+	Generators map[string]*Generator
 }
 
 func NewFileSystemRepository(path string) *FileSystemRepository {
@@ -27,7 +26,7 @@ func (r *FileSystemRepository) Parse() error {
 		if !info.IsDir() {
 			return nil
 		}
-		gen := generator.NewGenerator(path)
+		gen := NewGenerator(path)
 		err = gen.ParseManifest()
 		if err != nil && !os.IsNotExist(err) {
 			return err
@@ -47,6 +46,6 @@ func (r *FileSystemRepository) Parse() error {
 	return nil
 }
 
-func (r *FileSystemRepository) addGenerator(g *generator.Generator) {
+func (r *FileSystemRepository) addGenerator(g *Generator) {
 	r.Generators[g.Name] = g
 }

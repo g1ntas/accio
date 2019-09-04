@@ -1,48 +1,71 @@
 package cmd
 
 import (
-  "fmt"
-  "github.com/g1ntas/accio/config"
-  "github.com/spf13/cobra"
-  "os"
+	"fmt"
+	"github.com/g1ntas/accio/generator"
+	"github.com/spf13/cobra"
+	"os"
+	"path/filepath"
 )
 
-var registry *config.Registry
+var registry *generator.Registry
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-  Use:   "accio",
-  Short: "A brief description of your application",
-  Long: `A longer description that spans multiple lines and likely contains
+	Use:   "accio",
+	Short: "A brief description of your application",
+	Long: `A longer description that spans multiple lines and likely contains
 examples and usage of using your application. For example:
 
 Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
-  // Uncomment the following line if your bare application
-  // has an action associated with it:
-  //	Run: func(cmd *cobra.Command, args []string) { },
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-  var err error
-  registry, err = config.LoadRegistry()
-  if err != nil {
-    fmt.Println(err)
-    os.Exit(1)
-  }
-  if err := rootCmd.Execute(); err != nil {
-    fmt.Println(err)
-    os.Exit(1)
-  }
+	var err error
+	registry, err = loadRegistry()
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	if err = rootCmd.Execute(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 }
 
-func init() {
-
-  // Cobra also supports local flags, which will only run
-  // when this action is called directly.
-  rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+func loadRegistry() (*generator.Registry, error) {
+	path, err := registryPath()
+	if err != nil {
+		return nil, err
+	}
+	reg := generator.NewRegistry(path)
+	if err = reg.Load(); err != nil {
+		return nil, err
+	}
+	return reg, nil
 }
 
+// userConfigDir returns base directory for storing user configuration for accio.
+func userConfigDir() (string, error) {
+	// todo: in go 1.13 os.UserConfigDir() should be added, when released use it as a base dir
+	// todo: see: https://github.com/golang/go/issues/29960
+	dir, err := os.UserCacheDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, ".accio"), nil
+}
+
+// registryPath returns file path to the config file containing information about existing generators and repositories.
+func registryPath() (string, error) {
+	dir, err := userConfigDir()
+	if err != nil {
+		return "", err
+	}
+	// todo: move filename or extension in generator registry?
+	return filepath.Join(dir, "registry.json"), nil
+}
