@@ -3,7 +3,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"github.com/g1ntas/accio/generator"
+	"github.com/g1ntas/accio/generators"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -29,13 +29,14 @@ var addCmd = &cobra.Command{
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// todo: add cosmetics: better messages, more information, maybe colors
-		repo := generator.NewFileSystemRepository(args[0])
+		repo := generators.NewFileSystemRepository(args[0])
 		if err := repo.Parse(); err != nil {
 			return err
 		}
-		registry.AddRepository(repo)
-		err := registry.Save()
-		if err != nil {
+		if err := registry.AddRepository(repo); err != nil {
+			return err
+		}
+		if err := registry.Save(); err != nil {
 			return err
 		}
 		fmt.Println("Done.")

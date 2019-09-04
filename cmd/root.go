@@ -2,13 +2,13 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/g1ntas/accio/generator"
+	"github.com/g1ntas/accio/generators"
 	"github.com/spf13/cobra"
 	"os"
 	"path/filepath"
 )
 
-var registry *generator.Registry
+var registry *generators.Registry
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -32,17 +32,16 @@ func Execute() {
 		os.Exit(1)
 	}
 	if err = rootCmd.Execute(); err != nil {
-		fmt.Println(err)
 		os.Exit(1)
 	}
 }
 
-func loadRegistry() (*generator.Registry, error) {
+func loadRegistry() (*generators.Registry, error) {
 	path, err := registryPath()
 	if err != nil {
 		return nil, err
 	}
-	reg := generator.NewRegistry(path)
+	reg := generators.NewRegistry(path)
 	if err = reg.Load(); err != nil {
 		return nil, err
 	}
@@ -51,13 +50,14 @@ func loadRegistry() (*generator.Registry, error) {
 
 // userConfigDir returns base directory for storing user configuration for accio.
 func userConfigDir() (string, error) {
+	// todo: make directory configurable, and use this func value as default
 	// todo: in go 1.13 os.UserConfigDir() should be added, when released use it as a base dir
 	// todo: see: https://github.com/golang/go/issues/29960
 	dir, err := os.UserCacheDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, ".accio"), nil
+	return filepath.Join(dir, "accio"), nil
 }
 
 // registryPath returns file path to the config file containing information about existing generators and repositories.
@@ -66,6 +66,6 @@ func registryPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	// todo: move filename or extension in generator registry?
+	// todo: move filename or extension in generators registry?
 	return filepath.Join(dir, "registry.json"), nil
 }

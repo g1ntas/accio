@@ -1,19 +1,23 @@
-package generator
+package generators
 
 import (
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 )
 
 type Registry struct {
-	Repos []*FileSystemRepository `json:"repositories"`
-	path string
+	Repos map[string]*FileSystemRepository `json:"repositories"`
+	path  string
 }
 
 func NewRegistry(path string) *Registry {
-	return &Registry{path: path}
+	return &Registry{
+		Repos: make(map[string]*FileSystemRepository),
+		path: path,
+	}
 }
 
 // Load reads registry file from user config directory and stores data in struct.
@@ -42,7 +46,7 @@ func (r *Registry) Save() error {
 	}
 	dir := filepath.Dir(r.path)
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		if err := os.MkdirAll(dir, os.ModeDir); err != nil {
+		if err := os.MkdirAll(dir, 0755); err != nil {
 			return err
 		}
 	}
@@ -54,14 +58,11 @@ func (r *Registry) Save() error {
 }
 
 // addRepository adds a repository to the registry.
-func (r *Registry) AddRepository(repo *FileSystemRepository) {
-	r.Repos = append(r.Repos, repo)
-}
-
-func (g *Generator) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Dest string `json:"dest"`
-	} {
-		Dest: g.Dest(),
-	})
+func (r *Registry) AddRepository(repo *FileSystemRepository) error {
+	if _, ok := r.Repos[repo.Path]; ok {
+		// todo: make own error OriginError?
+		return &os.PathError{Op: "add repository", Path: repo.Path, Err: errors.New("already exists")}
+	}
+	r.Repos[repo.Path] = repo
+	return nil
 }

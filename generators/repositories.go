@@ -1,17 +1,22 @@
-package generator
+package generators
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 )
 
 type FileSystemRepository struct {
-	Path       string
-	Generators map[string]*Generator
+	Path       string                `json:"path"`
+	Generators map[string]*Generator `json:"generators"`
 }
 
 func NewFileSystemRepository(path string) *FileSystemRepository {
-	return &FileSystemRepository{Path: path}
+	// todo: expand path and make absolute
+	return &FileSystemRepository{
+		Path:       path,
+		Generators: make(map[string]*Generator),
+	}
 }
 
 func (r *FileSystemRepository) Dest() string {
@@ -32,7 +37,9 @@ func (r *FileSystemRepository) Parse() error {
 			return err
 		}
 		if err == nil {
-			r.addGenerator(gen)
+			if err = r.addGenerator(gen); err != nil {
+				return err
+			}
 		}
 		// if path is a root directory, scan one level deeper
 		if path == r.Dest() {
@@ -46,6 +53,10 @@ func (r *FileSystemRepository) Parse() error {
 	return nil
 }
 
-func (r *FileSystemRepository) addGenerator(g *Generator) {
+func (r *FileSystemRepository) addGenerator(g *Generator) error {
+	if _, ok := r.Generators[g.Name]; ok {
+		return g.wrapErr("add generator", errors.New("already exists within same repository"))
+	}
 	r.Generators[g.Name] = g
+	return nil
 }

@@ -8,17 +8,17 @@ import (
 
 // runCmd represents the run command
 var runCmd = &cobra.Command{
-	Use:   "run {generator}",
-	Short: "Run an existing generator from one of the repositories",
+	Use:   "run {generators}",
+	Short: "Run an existing generators from one of the repositories",
 	Long: ``,
 	Args: func(cmd *cobra.Command, args []string) error {
-		// todo: validate generator exists with a given name
+		// todo: validate generators exists with a given name
 		return nil
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		// todo: lookup for a named generator
+		// todo: lookup for a named generators
 		// todo: if multiple generators found prompt to choose one
-		// todo: run generator
+		// todo: run generators
 		fmt.Println("run called")
 	},
 }
