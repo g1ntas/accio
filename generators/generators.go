@@ -3,7 +3,6 @@ package generators
 import (
 	"errors"
 	"gopkg.in/yaml.v2"
-	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -18,7 +17,7 @@ type Generator struct {
 	Name string `json:"full-name",yaml:"full-name"`
 	Description string `json:"description",yaml:"description"`
 	Help string `json:"help",yaml:"help"`
-	Prompts map[string]Prompt `json:"prompts",yaml:"prompts"`
+	Prompts map[string]prompt `json:"prompts",yaml:"prompts"`
 }
 
 type GeneratorError struct {
@@ -29,7 +28,7 @@ type GeneratorError struct {
 }
 
 type TemplateEngine interface {
-	Parse([]byte) (Template, error)
+	Parse(b []byte, data map[string]interface{}) (Template, error)
 }
 
 type Template interface {
@@ -84,10 +83,12 @@ func (g *Generator) ParseManifest() error {
 }
 
 func (g *Generator) Run(prompter Prompter, writer Writer) error {
-	// todo: prompt for data based on generator prompt configuration from g.Prompts
-		// todo: validate that all values are set and contains valid value, otherwise return error
 	manifestPath := filepath.Join(g.Dest, ManifestFilename)
-	err := filepath.Walk(g.Dest, func(path string, info os.FileInfo, err error) error {
+	data, err := g.prompt(prompter)
+	if err != nil {
+		return err
+	}
+	return filepath.Walk(g.Dest, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -103,7 +104,7 @@ func (g *Generator) Run(prompter Prompter, writer Writer) error {
 			return err
 		}
 		if filepath.Ext(info.Name()) == ".accio" {
-			tpl, err := templateEngine.Parse(b)
+			tpl, err := templateEngine.Parse(b, data)
 			if err != nil {
 				return err
 			}
@@ -125,4 +126,15 @@ func (g *Generator) Run(prompter Prompter, writer Writer) error {
 		}
 		return nil
 	})
+}
+
+func (g *Generator) prompt(prompter Prompter) (data map[string]interface{}, err error){
+	for key, p := range g.Prompts {
+		val, err := p.prompt(prompter)
+		if err != nil {
+			return map[string]interface{}{}, err
+		}
+		data[key] = val
+	}
+	return
 }

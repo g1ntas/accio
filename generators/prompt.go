@@ -5,71 +5,63 @@ import (
 	"strconv"
 )
 
-/*
-Types:
-`input` - normal input that takes string value
-`integer`
-`confirm` - confirm prompt, that returns `true` or `false`
-`list` - list of values separated by `,`
-`select` - prompt to select single value from given list
-	* +options
-`multi-select` - prompt to select multiple values from given list
-	* +options
-`file`-  valid file path, returns file stream
- */
-
-const (
-	PromptInput       = "input"
-	PromptInteger     = "integer"
-	PromptConfirm     = "confirm"
-	PromptList        = "list"
-	PromptSelect      = "select"
-	PromptMultiSelect = "multi-select"
-	PromptFile        = "file"
-)
-
-type InputValidatorFunc func(val string) error
-
 type Prompter interface {
 	Get(message, help string, validator InputValidatorFunc) (string, error)
 	SelectOne(message, help string, options []string) (string, error)
-	SelectMultiple(message, help string, options []string) (string, error)
+	SelectMultiple(message, help string, options []string) ([]string, error)
 	Confirm(message, help string) (bool, error)
 }
 
-type Prompt interface {
-	Type() string
-	Ask(prompter Prompter) (interface{}, error)
+type InputValidatorFunc func(val string) error
+
+const (
+	promptInput       = "input"
+	promptInteger     = "integer"
+	promptConfirm     = "confirm"
+	promptList        = "list"
+	promptChoice      = "choice"
+	promptMultiChoice = "multi-choice"
+	promptFile        = "file"
+)
+
+var nilValidator = func(val string) error {
+	return nil
 }
 
-// Input
-type Input struct {
+type prompt interface {
+	kind() string
+	prompt(prompter Prompter) (interface{}, error)
+}
+
+type base struct {
 	Msg  string `json:"message",yaml:"message"`
 	Help string `json:"help",yaml:"help"`
 }
 
-func (p *Input) Type() string {
-	return PromptInput
+// input
+type input struct {
+	base
 }
 
-func (p *Input) Ask(prompter Prompter) (interface{}, error) {
-	return prompter.Get(p.Msg, p.Help, func(val string) error {
-		return nil
-	})
+func (p *input) kind() string {
+	return promptInput
+}
+
+func (p *input) prompt(prompter Prompter) (interface{}, error) {
+	return prompter.Get(p.Msg, p.Help, nilValidator)
 }
 
 
-// Integer
-type Integer struct {
-	Msg  string `json:"message",yaml:"message"`
-	Help string `json:"help",yaml:"help"`
+// integer
+type integer struct {
+	base
 }
 
-func (p *Integer) Type() string {
-	return PromptInteger
+func (p *integer) kind() string {
+	return promptInteger
 }
 
-func (p *Integer) Ask(prompter Prompter) (interface{}, error) {
+func (p *integer) prompt(prompter Prompter) (interface{}, error) {
 	val, err := prompter.Get(p.Msg, p.Help, func(val string) error {
 		for i, r := range val {
 			if r < '0' || r > '9' || (r == '-' && i != 0) {
@@ -85,16 +77,79 @@ func (p *Integer) Ask(prompter Prompter) (interface{}, error) {
 }
 
 
-// Confirm
-type Confirm struct {
+// confirm
+type confirm struct {
+	base
+}
+
+func (p *confirm) kind() string {
+	return promptConfirm
+}
+
+func (p *confirm) prompt(prompter Prompter) (interface{}, error) {
+	return prompter.Confirm(p.Msg, p.Help)
+}
+
+
+// List
+type list struct {
 	Msg  string `json:"message",yaml:"message"`
 	Help string `json:"help",yaml:"help"`
 }
 
-func (p *Confirm) Type() string {
-	return PromptConfirm
+func (p *list) kind() string {
+	return promptList
 }
 
-func (p *Confirm) Ask(prompter Prompter) (interface{}, error) {
-	return prompter.Confirm(p.Msg, p.Help)
+func (p *list) prompt(prompter Prompter) (interface{}, error) {
+	val, err := prompter.Get(p.Msg, p.Help, nilValidator)
+	// todo: split string by comma
+	return val, err
+}
+
+
+// choice
+type choice struct {
+	base
+	Options []string `json:"options",yaml:"options"`
+}
+
+func (p *choice) kind() string {
+	return promptChoice
+}
+
+func (p *choice) prompt(prompter Prompter) (interface{}, error) {
+	return prompter.SelectOne(p.Msg, p.Help, p.Options)
+}
+
+
+// multiChoice
+type multiChoice struct {
+	base
+	Options []string `json:"options",yaml:"options"`
+}
+
+func (p *multiChoice) kind() string {
+	return promptMultiChoice
+}
+
+func (p *multiChoice) prompt(prompter Prompter) (interface{}, error) {
+	return prompter.SelectMultiple(p.Msg, p.Help, p.Options)
+}
+
+
+// file
+type file struct {
+	base
+}
+
+func (p *file) kind() string {
+	return promptFile
+}
+
+func (p *file) prompt(prompter Prompter) (interface{}, error) {
+	return prompter.Get(p.Msg, p.Help, func(val string) error {
+		// todo: validate is an existing and readable file
+		return nil
+	})
 }
