@@ -64,11 +64,11 @@ var lexTests = []lexTest{
 		mkToken(tokenIdentifier, "tag-1"),
 		tEOF,
 	}},
-	{"reserved tag name", "delimiters", []token{
+	{"reserved tag full-name", "delimiters", []token{
 		tDelimiters,
 		tEOF,
 	}},
-	{"reserved tag name with attr", `delimiters -attr="value"`, []token{
+	{"reserved tag full-name with attr", `delimiters -attr="value"`, []token{
 		tDelimiters,
 		tAttrDeclare,
 		mkToken(tokenIdentifier, "attr"),
@@ -258,17 +258,17 @@ var lexTests = []lexTest{
 	{"tag must start on newline", " tag", []token{
 		mkToken(tokenError, "misplaced character U+0074 't', tag identifier must start on the newline"),
 	}},
-	{"invalid char at the start of attr name", `tag -*="test"`, []token{
+	{"invalid char at the start of attr full-name", `tag -*="test"`, []token{
 		mkToken(tokenIdentifier, "tag"),
 		tAttrDeclare,
-		mkToken(tokenError, "invalid character U+002A '*' within attribute name, valid ascii letter expected"),
+		mkToken(tokenError, "invalid character U+002A '*' within attribute full-name, valid ascii letter expected"),
 	}},
-	{"dash at the start of attr name", `tag --attr="test"`, []token{
+	{"dash at the start of attr full-name", `tag --attr="test"`, []token{
 		mkToken(tokenIdentifier, "tag"),
 		tAttrDeclare,
-		mkToken(tokenError, "invalid character U+002D '-' within attribute name, valid ascii letter expected"),
+		mkToken(tokenError, "invalid character U+002D '-' within attribute full-name, valid ascii letter expected"),
 	}},
-	{"invalid char within attr name", `tag -at*r="test"`, []token{
+	{"invalid char within attr full-name", `tag -at*r="test"`, []token{
 		mkToken(tokenIdentifier, "tag"),
 		tAttrDeclare,
 		mkToken(tokenIdentifier, "at"),

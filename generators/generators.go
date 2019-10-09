@@ -1,18 +1,24 @@
 package generators
 
 import (
-	"encoding/json"
 	"errors"
+	"gopkg.in/yaml.v2"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 )
 
-const ManifestFilename string = ".accio.json"
+const ManifestFilename string = ".accio.yaml"
+
+var templateEngine TemplateEngine
 
 type Generator struct {
 	Dest string `json:"dest"`
-	Name string `json:"name"`
+	Name string `json:"full-name",yaml:"full-name"`
+	Description string `json:"description",yaml:"description"`
+	Help string `json:"help",yaml:"help"`
+	Prompts map[string]Prompt `json:"prompts",yaml:"prompts"`
 }
 
 type GeneratorError struct {
@@ -20,6 +26,20 @@ type GeneratorError struct {
 	Name string
 	Path string
 	Err  error
+}
+
+type TemplateEngine interface {
+	Parse([]byte) (Template, error)
+}
+
+type Template interface {
+	Body() []byte
+ 	Filename() string
+	Skip() bool
+}
+
+type Writer interface {
+	Write(filename string, content []byte) error
 }
 
 func (e *GeneratorError) Error() string {
@@ -39,7 +59,6 @@ func (g *Generator) wrapErr(operation string, err error) error {
 }
 
 func (g *Generator) ParseManifest() error {
-	// todo: use yaml instead
 	path := filepath.Join(g.Dest, ManifestFilename)
 	info, err := os.Stat(path)
 	if err != nil {
@@ -56,10 +75,54 @@ func (g *Generator) ParseManifest() error {
 	if err != nil {
 		return err
 	}
-	err = json.Unmarshal(byt, &g)
+	err = yaml.Unmarshal(byt, &g)
 	if err != nil {
 		return err
 	}
 	// todo: validate parsed data
 	return nil
+}
+
+func (g *Generator) Run(prompter Prompter, writer Writer) error {
+	// todo: prompt for data based on generator prompt configuration from g.Prompts
+		// todo: validate that all values are set and contains valid value, otherwise return error
+	manifestPath := filepath.Join(g.Dest, ManifestFilename)
+	err := filepath.Walk(g.Dest, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() || path == manifestPath {
+			return nil
+		}
+		b, err := ioutil.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		filename, err := filepath.Rel(g.Dest, path)
+		if err != nil {
+			return err
+		}
+		if filepath.Ext(info.Name()) == ".accio" {
+			tpl, err := templateEngine.Parse(b)
+			if err != nil {
+				return err
+			}
+			if f := tpl.Filename(); f != "" {
+				filename = f
+			}
+			if tpl.Skip() {
+				return nil
+			}
+			err = writer.Write(filename, tpl.Body())
+			if err != nil {
+				return err
+			}
+			return nil
+		}
+		err = writer.Write(filename, b)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
 }

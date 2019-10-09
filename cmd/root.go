@@ -51,9 +51,7 @@ func loadRegistry() (*generators.Registry, error) {
 // userConfigDir returns base directory for storing user configuration for accio.
 func userConfigDir() (string, error) {
 	// todo: make directory configurable, and use this func value as default
-	// todo: in go 1.13 os.UserConfigDir() should be added, when released use it as a base dir
-	// todo: see: https://github.com/golang/go/issues/29960
-	dir, err := os.UserCacheDir()
+	dir, err := os.UserConfigDir()
 	if err != nil {
 		return "", err
 	}

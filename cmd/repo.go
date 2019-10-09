@@ -12,7 +12,7 @@ var repoCmd = &cobra.Command{
 	Short: "A brief description of your command",
 	Long: ``,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("repo called")
+		fmt.Println("repo called 1")
 	},
 }
 

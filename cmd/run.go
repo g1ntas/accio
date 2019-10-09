@@ -12,7 +12,7 @@ var runCmd = &cobra.Command{
 	Short: "Run an existing generators from one of the repositories",
 	Long: ``,
 	Args: func(cmd *cobra.Command, args []string) error {
-		// todo: validate generators exists with a given name
+		// todo: validate generators exists with a given full-name
 		return nil
 	},
 	Run: func(cmd *cobra.Command, args []string) {

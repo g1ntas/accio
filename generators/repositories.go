@@ -12,7 +12,6 @@ type FileSystemRepository struct {
 }
 
 func NewFileSystemRepository(path string) *FileSystemRepository {
-	// todo: expand path and make absolute
 	return &FileSystemRepository{
 		Path:       path,
 		Generators: make(map[string]*Generator),
@@ -23,8 +22,8 @@ func (r *FileSystemRepository) Dest() string {
 	return r.Path
 }
 
-func (r *FileSystemRepository) Parse() error {
-	err := filepath.Walk(r.Dest(), func(path string, info os.FileInfo, err error) error {
+func (r *FileSystemRepository) Parse() (count int, err error) {
+	err = filepath.Walk(r.Dest(), func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -40,6 +39,7 @@ func (r *FileSystemRepository) Parse() error {
 			if err = r.addGenerator(gen); err != nil {
 				return err
 			}
+			count++
 		}
 		// if path is a root directory, scan one level deeper
 		if path == r.Dest() {
@@ -48,9 +48,9 @@ func (r *FileSystemRepository) Parse() error {
 		return filepath.SkipDir
 	})
 	if err != nil {
-		return err
+		return 0, err
 	}
-	return nil
+	return count, nil
 }
 
 func (r *FileSystemRepository) addGenerator(g *Generator) error {

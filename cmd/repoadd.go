@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/g1ntas/accio/generators"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 )
@@ -15,7 +16,7 @@ var addCmd = &cobra.Command{
 	Short: "Add a new global repository and cache it",
 	Long: ``,
 	Args: func(cmd *cobra.Command, args []string) error {
-		if len(args) < 0 {
+		if len(args) <= 0 {
 			return errors.New("directory path must be specified as a first argument")
 		}
 		info, err := os.Stat(args[0])
@@ -28,10 +29,18 @@ var addCmd = &cobra.Command{
 		return nil
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// todo: add cosmetics: better messages, more information, maybe colors
-		repo := generators.NewFileSystemRepository(args[0])
-		if err := repo.Parse(); err != nil {
+		// todo: add cosmetics: better messages, more information, colors
+		path, err := filepath.Abs(args[0])
+		if err != nil {
 			return err
+		}
+		repo := generators.NewFileSystemRepository(path)
+		c, err := repo.Parse()
+		if err != nil {
+			return err
+		}
+		if c <= 0 {
+			return fmt.Errorf("no configured generators found in %s\n", path)
 		}
 		if err := registry.AddRepository(repo); err != nil {
 			return err
@@ -39,8 +48,7 @@ var addCmd = &cobra.Command{
 		if err := registry.Save(); err != nil {
 			return err
 		}
-		fmt.Println("Done.")
-
+		fmt.Printf("Added %d generator(-s)\nDone.\n", c)
 		return nil
 	},
 }

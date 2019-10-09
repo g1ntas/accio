@@ -66,7 +66,7 @@ type lexStateFn func(*lexer) lexStateFn
 
 // lexer holds the state of the scanner.
 type lexer struct {
-	name       string     // the name of the input; used only for errors
+	name       string     // the full-name of the input; used only for errors
 	input      string     // the string being scanned
 	pos        Pos        // current position in the input
 	start      Pos        // start position of current token
@@ -236,7 +236,7 @@ func lexComment(lx *lexer) lexStateFn {
 	return lexDocument
 }
 
-// lexTagIdentifier scans a tag name.
+// lexTagIdentifier scans a tag full-name.
 // First letter has already been seen.
 func lexTagIdentifier(lx *lexer) lexStateFn {
 	if !scanIdentifier(lx) {
@@ -303,10 +303,10 @@ func lexSpace(lx *lexer) lexStateFn {
 	return lexAfterTag
 }
 
-// lexAttribute scans an attribute name.
+// lexAttribute scans an attribute full-name.
 func lexAttributeName(lx *lexer) lexStateFn {
 	if r := lx.next(); !isLetter(r) {
-		return lx.errorf("invalid character %#U within attribute name, valid ascii letter expected", r)
+		return lx.errorf("invalid character %#U within attribute full-name, valid ascii letter expected", r)
 	}
 	if !scanIdentifier(lx) {
 		return nil
@@ -445,5 +445,5 @@ func isLetter(r rune) bool {
 
 // isDigit checks whether r is an ASCII valid numeric digit ([0-9]).
 func isDigit(r rune) bool {
-	return r <= unicode.MaxASCII && unicode.IsNumber(r)
+	return r <= unicode.MaxASCII && unicode.IsDigit(r)
 }

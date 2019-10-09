@@ -1,4 +1,4 @@
-package markup
+package templates
 
 /* Markup rules:
 filename:
@@ -9,22 +9,22 @@ variable:
 	multiple: true
 	hasBody: true
 	attributes:
-		{ name: name, unique: true, pattern: todo [starlark supported] }
+		{ full-name: full-name, unique: true, pattern: todo [starlark supported] }
 template:
 	multiple: false
 	hasBody: true
 	attributes:
-		{ name: left-delimiter, unique: false, pattern: todo: [mustache supported] }
-		{ name: right-delimiter, unique: false, pattern: todo: [mustache supported] }
-		{ name: trim-indentation, unique: false, pattern: (true|false) }
+		{ full-name: left-delimiter, unique: false, pattern: todo: [mustache supported] }
+		{ full-name: right-delimiter, unique: false, pattern: todo: [mustache supported] }
+		{ full-name: trim-indentation, unique: false, pattern: (true|false) }
 partial:
 	multiple: true
 	hasBody: true
 	attributes:
-		{ name: name, unique: true, pattern: todo [mustache supported] }
-		{ name: left-delimiter, unique: false, pattern: todo: [mustache supported] }
-		{ name: right-delimiter, unique: false, pattern: todo: [mustache supported] }
-		{ name: trim-indentation, unique: false, pattern: (true|false) }
+		{ full-name: full-name, unique: true, pattern: todo [mustache supported] }
+		{ full-name: left-delimiter, unique: false, pattern: todo: [mustache supported] }
+		{ full-name: right-delimiter, unique: false, pattern: todo: [mustache supported] }
+		{ full-name: trim-indentation, unique: false, pattern: (true|false) }
 */
 
 type Schema struct {
@@ -61,7 +61,7 @@ var schema = &Schema{
 			HasBody: true,
 			Unique: true,
 			Attributes: map[string]*AttrSchema{
-				"name": {Unique: true},
+				"full-name": {Unique: true},
 			},
 		},
 		"template": {
@@ -77,7 +77,7 @@ var schema = &Schema{
 			HasBody: true,
 			Unique: false,
 			Attributes: map[string]*AttrSchema{
-				"name": {Unique: true},
+				"full-name": {Unique: true},
 				"left-delimiter": {Unique: false},
 				"right-delimiter": {Unique: false},
 				"trim-indentation": {Unique: false},
@@ -87,7 +87,7 @@ var schema = &Schema{
 }
 
 /*func (p *Parser) validateTag(node TagNode) bool {
-	schema, ok := p.schema.tags[node.name]
+	schema, ok := p.schema.tags[node.full-name]
 	if !ok {
 		return true
 	}

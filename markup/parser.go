@@ -41,7 +41,7 @@ func (p Pos) Position() Pos {
 
 // Parser is the representation of a single parsed template.
 type Parser struct {
-	Name string     // name of the template represented by the tree.
+	Name string     // full-name of the template represented by the tree.
 	Tags []*TagNode // list of nodes of the tree.
 	text string     // text parsed to create the template.
 	// For parsing only; cleared after parse.
@@ -199,7 +199,7 @@ func parseAttr(p *Parser) parseStateFn {
 }
 
 // scanAttr scans and consumes tokens of the attribute which is known to be present
-// and returns it's name and value.
+// and returns it's full-name and value.
 func (p *Parser) scanAttr() (string, string) {
 	token := p.next()
 	if token.typ != tokenIdentifier {
