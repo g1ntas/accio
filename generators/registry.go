@@ -1,56 +1,37 @@
 package generators
 
 import (
-	"encoding/json"
+	"encoding/gob"
 	"errors"
-	"io/ioutil"
+	"io"
 	"os"
-	"path/filepath"
 )
+
+const SerializationFormat = "gob"
 
 type Registry struct {
 	Repos map[string]*FileSystemRepository `json:"repositories"`
-	path  string
 }
 
-func NewRegistry(path string) *Registry {
+func NewRegistry() *Registry {
 	return &Registry{
 		Repos: make(map[string]*FileSystemRepository),
-		path: path,
 	}
 }
 
-// Load reads registry file from user config directory and stores data in struct.
-// If registry file does not exist within user config directory,
-// then new registry struct is returned instead.
-func (r *Registry) Load() error {
-	b, err := ioutil.ReadFile(r.path)
-	if os.IsNotExist(err) {
-		return nil
-	}
+func ReadRegistry(r io.Reader) (*Registry, error) {
+	reg := NewRegistry()
+	dec := gob.NewDecoder(r)
+	err := dec.Decode(reg)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	err = json.Unmarshal(b, r)
-	if err != nil {
-		return err
-	}
-	return err
+	return reg, err
 }
 
-// Save stores all the data from registry struct into configured registry file.
-func (r *Registry) Save() error {
-	b, err := json.Marshal(r)
-	if err != nil {
-		return err
-	}
-	dir := filepath.Dir(r.path)
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return err
-		}
-	}
-	err = ioutil.WriteFile(r.path, b, 0644)
+func WriteRegistry(w io.Writer, reg *Registry) error {
+	enc := gob.NewEncoder(w)
+	err := enc.Encode(reg)
 	if err != nil {
 		return err
 	}

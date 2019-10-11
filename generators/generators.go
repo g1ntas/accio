@@ -13,11 +13,11 @@ const ManifestFilename string = ".accio.toml"
 var templateEngine TemplateEngine
 
 type Generator struct {
-	Dest string `json:"dest"`
-	Name string `json:"full-name",toml:"full-name"`
-	Description string `json:"description",toml:"description"`
-	Help string `json:"help",toml:"help"`
-	Prompts promptMap `json:"prompts",toml:"prompts"`
+	Dest        string
+	Name        string    `toml:"full-name"`
+	Description string    `toml:"description"`
+	Help        string    `toml:"help"`
+	Prompts     promptMap `toml:"prompts"`
 }
 
 type GeneratorError struct {
@@ -33,7 +33,7 @@ type TemplateEngine interface {
 
 type Template interface {
 	Body() []byte
- 	Filename() string
+	Filename() string
 	Skip() bool
 }
 
@@ -128,7 +128,7 @@ func (g *Generator) Run(prompter Prompter, writer Writer) error {
 	})
 }
 
-func (g *Generator) prompt(prompter Prompter) (data map[string]interface{}, err error){
+func (g *Generator) prompt(prompter Prompter) (data map[string]interface{}, err error) {
 	for key, p := range g.Prompts {
 		val, err := p.prompt(prompter)
 		if err != nil {

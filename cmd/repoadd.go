@@ -45,7 +45,7 @@ var addCmd = &cobra.Command{
 		if err := registry.AddRepository(repo); err != nil {
 			return err
 		}
-		if err := registry.Save(); err != nil {
+		if err := saveRegistry(registry); err != nil {
 			return err
 		}
 		fmt.Printf("Added %d generator(-s)\nDone.\n", c)

@@ -36,18 +36,6 @@ func Execute() {
 	}
 }
 
-func loadRegistry() (*generators.Registry, error) {
-	path, err := registryPath()
-	if err != nil {
-		return nil, err
-	}
-	reg := generators.NewRegistry(path)
-	if err = reg.Load(); err != nil {
-		return nil, err
-	}
-	return reg, nil
-}
-
 // userConfigDir returns base directory for storing user configuration for accio.
 func userConfigDir() (string, error) {
 	// todo: make directory configurable, and use this func value as default
@@ -64,6 +52,60 @@ func registryPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	// todo: move filename or extension in generators registry?
-	return filepath.Join(dir, "registry.json"), nil
+	return filepath.Join(dir, fmt.Sprintf("registry.%s", generators.SerializationFormat)), nil
+}
+
+// loadRegistry reads registry file from user config directory and stores data in struct.
+// If registry file does not exist within user config directory,
+// then new registry struct is returned instead.
+func loadRegistry() (*generators.Registry, error) {
+	path, err := registryPath()
+	if err != nil {
+		return nil, err
+	}
+	f, err := os.Open(path)
+	if os.IsNotExist(err) {
+		return generators.NewRegistry(), nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err := f.Close(); err != nil {
+			panic(err)
+		}
+	}()
+	reg, err := generators.ReadRegistry(f)
+	if err != nil {
+		return nil, err
+	}
+	return reg, nil
+}
+
+// Save stores all the data from registry struct into configured registry file.
+func saveRegistry(reg *generators.Registry) error {
+	path, err := registryPath()
+	if err != nil {
+		return err
+	}
+	dir := filepath.Dir(path)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return err
+		}
+	}
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := f.Close(); err != nil {
+			panic(err)
+		}
+	}()
+	err = generators.WriteRegistry(f, reg)
+	if err != nil {
+		return err
+	}
+	return nil
 }

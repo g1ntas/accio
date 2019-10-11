@@ -1,6 +1,7 @@
 package generators
 
 import (
+	"encoding/gob"
 	"errors"
 	"fmt"
 	"strconv"
@@ -36,14 +37,25 @@ type prompt interface {
 
 type promptMap map[string]prompt
 
-type base struct {
-	Msg  string `json:"message",toml:"message"`
-	Help string `json:"help",toml:"help"`
+type Base struct {
+	Msg  string `toml:"message"`
+	Help string `toml:"help"`
 }
 
 // input
 type input struct {
-	base
+	Base
+}
+
+func init() {
+	// register prompt interface types for gob serialization
+	gob.Register(&input{})
+	gob.Register(&integer{})
+	gob.Register(&confirm{})
+	gob.Register(&list{})
+	gob.Register(&choice{})
+	gob.Register(&multiChoice{})
+	gob.Register(&file{})
 }
 
 func (p *input) kind() string {
@@ -57,7 +69,7 @@ func (p *input) prompt(prompter Prompter) (interface{}, error) {
 
 // integer
 type integer struct {
-	base
+	Base
 }
 
 func (p *integer) kind() string {
@@ -82,7 +94,7 @@ func (p *integer) prompt(prompter Prompter) (interface{}, error) {
 
 // confirm
 type confirm struct {
-	base
+	Base
 }
 
 func (p *confirm) kind() string {
@@ -96,7 +108,7 @@ func (p *confirm) prompt(prompter Prompter) (interface{}, error) {
 
 // List
 type list struct {
-	base
+	Base
 }
 
 func (p *list) kind() string {
@@ -112,8 +124,8 @@ func (p *list) prompt(prompter Prompter) (interface{}, error) {
 
 // choice
 type choice struct {
-	base
-	Options []string `json:"options",toml:"options"`
+	Base
+	Options []string `toml:"options"`
 }
 
 func (p *choice) kind() string {
@@ -127,8 +139,8 @@ func (p *choice) prompt(prompter Prompter) (interface{}, error) {
 
 // multiChoice
 type multiChoice struct {
-	base
-	Options []string `json:"options",toml:"options"`
+	Base
+	Options []string `toml:"options"`
 }
 
 func (p *multiChoice) kind() string {
@@ -142,7 +154,7 @@ func (p *multiChoice) prompt(prompter Prompter) (interface{}, error) {
 
 // file
 type file struct {
-	base
+	Base
 }
 
 func (p *file) kind() string {
@@ -168,7 +180,7 @@ func (m *promptMap) UnmarshalTOML(data interface{}) error {
 		if !ok {
 			return fmt.Errorf("prompt %q has no type", key)
 		}
-		base := base{}
+		base := Base{}
 		base.Msg, _ = mapping["message"].(string)
 		base.Help, _ = mapping["help"].(string)
 		switch typ {
