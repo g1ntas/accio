@@ -2,22 +2,22 @@ package generators
 
 import (
 	"errors"
-	"gopkg.in/yaml.v2"
+	"github.com/BurntSushi/toml"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 )
 
-const ManifestFilename string = ".accio.yaml"
+const ManifestFilename string = ".accio.toml"
 
 var templateEngine TemplateEngine
 
 type Generator struct {
 	Dest string `json:"dest"`
-	Name string `json:"full-name",yaml:"full-name"`
-	Description string `json:"description",yaml:"description"`
-	Help string `json:"help",yaml:"help"`
-	Prompts map[string]prompt `json:"prompts",yaml:"prompts"`
+	Name string `json:"full-name",toml:"full-name"`
+	Description string `json:"description",toml:"description"`
+	Help string `json:"help",toml:"help"`
+	Prompts promptMap `json:"prompts",toml:"prompts"`
 }
 
 type GeneratorError struct {
@@ -74,7 +74,7 @@ func (g *Generator) ParseManifest() error {
 	if err != nil {
 		return err
 	}
-	err = yaml.Unmarshal(byt, &g)
+	err = toml.Unmarshal(byt, &g)
 	if err != nil {
 		return err
 	}

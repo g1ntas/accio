@@ -2,6 +2,7 @@ package generators
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 )
 
@@ -33,9 +34,11 @@ type prompt interface {
 	prompt(prompter Prompter) (interface{}, error)
 }
 
+type promptMap map[string]prompt
+
 type base struct {
-	Msg  string `json:"message",yaml:"message"`
-	Help string `json:"help",yaml:"help"`
+	Msg  string `json:"message",toml:"message"`
+	Help string `json:"help",toml:"help"`
 }
 
 // input
@@ -93,8 +96,7 @@ func (p *confirm) prompt(prompter Prompter) (interface{}, error) {
 
 // List
 type list struct {
-	Msg  string `json:"message",yaml:"message"`
-	Help string `json:"help",yaml:"help"`
+	base
 }
 
 func (p *list) kind() string {
@@ -111,7 +113,7 @@ func (p *list) prompt(prompter Prompter) (interface{}, error) {
 // choice
 type choice struct {
 	base
-	Options []string `json:"options",yaml:"options"`
+	Options []string `json:"options",toml:"options"`
 }
 
 func (p *choice) kind() string {
@@ -126,7 +128,7 @@ func (p *choice) prompt(prompter Prompter) (interface{}, error) {
 // multiChoice
 type multiChoice struct {
 	base
-	Options []string `json:"options",yaml:"options"`
+	Options []string `json:"options",toml:"options"`
 }
 
 func (p *multiChoice) kind() string {
@@ -152,4 +154,43 @@ func (p *file) prompt(prompter Prompter) (interface{}, error) {
 		// todo: validate is an existing and readable file
 		return nil
 	})
+}
+
+func (m *promptMap) UnmarshalTOML(data interface{}) error {
+	// initialize map
+	if *m == nil {
+		*m = make(promptMap)
+	}
+	prompts := data.(map[string]interface{})
+	for key, def := range prompts {
+		mapping := def.(map[string]interface{})
+		typ, ok := mapping["type"].(string)
+		if !ok {
+			return fmt.Errorf("prompt %q has no type", key)
+		}
+		base := base{}
+		base.Msg, _ = mapping["message"].(string)
+		base.Help, _ = mapping["help"].(string)
+		switch typ {
+		case promptInput:
+			(*m)[key] = &input{base}
+		case promptInteger:
+			(*m)[key] = &integer{base}
+		case promptConfirm:
+			(*m)[key] = &confirm{base}
+		case promptList:
+			(*m)[key] = &list{base}
+		case promptChoice:
+			options, _ := mapping["options"].([]string)
+			(*m)[key] = &choice{base, options}
+		case promptMultiChoice:
+			options, _ := mapping["options"].([]string)
+			(*m)[key] = &multiChoice{base, options}
+		case promptFile:
+			(*m)[key] = &file{base}
+		default:
+			return fmt.Errorf("prompt %q with unknown type %q", key, typ)
+		}
+	}
+	return nil
 }
