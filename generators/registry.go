@@ -1,41 +1,18 @@
 package generators
 
 import (
-	"encoding/gob"
 	"errors"
-	"io"
 	"os"
 )
 
-const SerializationFormat = "gob"
-
 type Registry struct {
-	Repos map[string]*FileSystemRepository `json:"repositories"`
+	Repos map[string]*FileSystemRepository
 }
 
 func NewRegistry() *Registry {
 	return &Registry{
 		Repos: make(map[string]*FileSystemRepository),
 	}
-}
-
-func ReadRegistry(r io.Reader) (*Registry, error) {
-	reg := NewRegistry()
-	dec := gob.NewDecoder(r)
-	err := dec.Decode(reg)
-	if err != nil {
-		return nil, err
-	}
-	return reg, err
-}
-
-func WriteRegistry(w io.Writer, reg *Registry) error {
-	enc := gob.NewEncoder(w)
-	err := enc.Encode(reg)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 // addRepository adds a repository to the registry.

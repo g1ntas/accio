@@ -1,7 +1,6 @@
 package generators
 
 import (
-	"encoding/gob"
 	"errors"
 	"fmt"
 	"strconv"
@@ -35,48 +34,37 @@ type prompt interface {
 	prompt(prompter Prompter) (interface{}, error)
 }
 
-type promptMap map[string]prompt
+type PromptMap map[string]prompt
 
 type Base struct {
 	Msg  string `toml:"message"`
 	Help string `toml:"help"`
 }
 
-// input
-type input struct {
+// Input
+type Input struct {
 	Base
 }
 
-func init() {
-	// register prompt interface types for gob serialization
-	gob.Register(&input{})
-	gob.Register(&integer{})
-	gob.Register(&confirm{})
-	gob.Register(&list{})
-	gob.Register(&choice{})
-	gob.Register(&multiChoice{})
-	gob.Register(&file{})
-}
-
-func (p *input) kind() string {
+func (p *Input) kind() string {
 	return promptInput
 }
 
-func (p *input) prompt(prompter Prompter) (interface{}, error) {
+func (p *Input) prompt(prompter Prompter) (interface{}, error) {
 	return prompter.Get(p.Msg, p.Help, nilValidator)
 }
 
 
-// integer
-type integer struct {
+// Integer
+type Integer struct {
 	Base
 }
 
-func (p *integer) kind() string {
+func (p *Integer) kind() string {
 	return promptInteger
 }
 
-func (p *integer) prompt(prompter Prompter) (interface{}, error) {
+func (p *Integer) prompt(prompter Prompter) (interface{}, error) {
 	val, err := prompter.Get(p.Msg, p.Help, func(val string) error {
 		for i, r := range val {
 			if r < '0' || r > '9' || (r == '-' && i != 0) {
@@ -92,87 +80,83 @@ func (p *integer) prompt(prompter Prompter) (interface{}, error) {
 }
 
 
-// confirm
-type confirm struct {
+// Confirm
+type Confirm struct {
 	Base
 }
 
-func (p *confirm) kind() string {
+func (p *Confirm) kind() string {
 	return promptConfirm
 }
 
-func (p *confirm) prompt(prompter Prompter) (interface{}, error) {
+func (p *Confirm) prompt(prompter Prompter) (interface{}, error) {
 	return prompter.Confirm(p.Msg, p.Help)
 }
 
 
 // List
-type list struct {
+type List struct {
 	Base
 }
 
-func (p *list) kind() string {
+func (p *List) kind() string {
 	return promptList
 }
 
-func (p *list) prompt(prompter Prompter) (interface{}, error) {
+func (p *List) prompt(prompter Prompter) (interface{}, error) {
 	val, err := prompter.Get(p.Msg, p.Help, nilValidator)
 	// todo: split string by comma
 	return val, err
 }
 
 
-// choice
-type choice struct {
+// Choice
+type Choice struct {
 	Base
 	Options []string `toml:"options"`
 }
 
-func (p *choice) kind() string {
+func (p *Choice) kind() string {
 	return promptChoice
 }
 
-func (p *choice) prompt(prompter Prompter) (interface{}, error) {
+func (p *Choice) prompt(prompter Prompter) (interface{}, error) {
 	return prompter.SelectOne(p.Msg, p.Help, p.Options)
 }
 
 
-// multiChoice
-type multiChoice struct {
+// MultiChoice
+type MultiChoice struct {
 	Base
 	Options []string `toml:"options"`
 }
 
-func (p *multiChoice) kind() string {
+func (p *MultiChoice) kind() string {
 	return promptMultiChoice
 }
 
-func (p *multiChoice) prompt(prompter Prompter) (interface{}, error) {
+func (p *MultiChoice) prompt(prompter Prompter) (interface{}, error) {
 	return prompter.SelectMultiple(p.Msg, p.Help, p.Options)
 }
 
 
-// file
-type file struct {
+// File
+type File struct {
 	Base
 }
 
-func (p *file) kind() string {
+func (p *File) kind() string {
 	return promptFile
 }
 
-func (p *file) prompt(prompter Prompter) (interface{}, error) {
+func (p *File) prompt(prompter Prompter) (interface{}, error) {
 	return prompter.Get(p.Msg, p.Help, func(val string) error {
 		// todo: validate is an existing and readable file
 		return nil
 	})
 }
 
-func (m *promptMap) UnmarshalTOML(data interface{}) error {
-	// initialize map
-	if *m == nil {
-		*m = make(promptMap)
-	}
+func (m PromptMap) UnmarshalTOML(data interface{}) error {
 	prompts := data.(map[string]interface{})
 	for key, def := range prompts {
 		mapping := def.(map[string]interface{})
@@ -185,21 +169,21 @@ func (m *promptMap) UnmarshalTOML(data interface{}) error {
 		base.Help, _ = mapping["help"].(string)
 		switch typ {
 		case promptInput:
-			(*m)[key] = &input{base}
+			m[key] = &Input{base}
 		case promptInteger:
-			(*m)[key] = &integer{base}
+			m[key] = &Integer{base}
 		case promptConfirm:
-			(*m)[key] = &confirm{base}
+			m[key] = &Confirm{base}
 		case promptList:
-			(*m)[key] = &list{base}
+			m[key] = &List{base}
 		case promptChoice:
 			options, _ := mapping["options"].([]string)
-			(*m)[key] = &choice{base, options}
+			m[key] = &Choice{base, options}
 		case promptMultiChoice:
 			options, _ := mapping["options"].([]string)
-			(*m)[key] = &multiChoice{base, options}
+			m[key] = &MultiChoice{base, options}
 		case promptFile:
-			(*m)[key] = &file{base}
+			m[key] = &File{base}
 		default:
 			return fmt.Errorf("prompt %q with unknown type %q", key, typ)
 		}

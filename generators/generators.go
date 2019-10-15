@@ -1,8 +1,6 @@
 package generators
 
 import (
-	"errors"
-	"github.com/BurntSushi/toml"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -10,14 +8,12 @@ import (
 
 const ManifestFilename string = ".accio.toml"
 
-var templateEngine TemplateEngine
-
 type Generator struct {
 	Dest        string
 	Name        string    `toml:"full-name"`
 	Description string    `toml:"description"`
 	Help        string    `toml:"help"`
-	Prompts     promptMap `toml:"prompts"`
+	Prompts     PromptMap `toml:"prompts"`
 }
 
 type GeneratorError struct {
@@ -27,10 +23,6 @@ type GeneratorError struct {
 	Err  error
 }
 
-type TemplateEngine interface {
-	Parse(b []byte, data map[string]interface{}) (Template, error)
-}
-
 type Template interface {
 	Body() []byte
 	Filename() string
@@ -38,7 +30,16 @@ type Template interface {
 }
 
 type Writer interface {
-	Write(filename string, content []byte) error
+	WriteFile(filename string, content []byte) error
+}
+
+type Reader interface {
+	ReadFile(path string) ([]byte, error)
+}
+
+type WalkFunc func(path string, info os.FileMode, err error) error
+type Walker interface {
+	Walk(root string, walkFn WalkFunc) error
 }
 
 func (e *GeneratorError) Error() string {
@@ -57,20 +58,28 @@ func (g *Generator) wrapErr(operation string, err error) error {
 
 }
 
-func (g *Generator) ParseManifest() error {
-	path := filepath.Join(g.Dest, ManifestFilename)
-	info, err := os.Stat(path)
+/*func NewGeneratorFromConfig(r io.Reader) error {
+	err = toml.Unmarshal(r, &g)
+	if err != nil {
+		return err
+	}
+	// todo: validate parsed data
+	return nil
+}
+*/
+func NewGeneratorFromConfig(dest string) error {
+	info, err := os.Stat(dest)
 	if err != nil {
 		return err
 	}
 	if info.IsDir() {
 		return &os.PathError{
 			Op:   "parse manifest",
-			Path: path,
+			Path: dest,
 			Err:  errors.New("is a directory, but expected a file"),
 		}
 	}
-	byt, err := ioutil.ReadFile(path)
+	byt, err := ioutil.ReadFile(dest)
 	if err != nil {
 		return err
 	}
@@ -80,52 +89,6 @@ func (g *Generator) ParseManifest() error {
 	}
 	// todo: validate parsed data
 	return nil
-}
-
-func (g *Generator) Run(prompter Prompter, writer Writer) error {
-	manifestPath := filepath.Join(g.Dest, ManifestFilename)
-	data, err := g.prompt(prompter)
-	if err != nil {
-		return err
-	}
-	return filepath.Walk(g.Dest, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if info.IsDir() || path == manifestPath {
-			return nil
-		}
-		b, err := ioutil.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		filename, err := filepath.Rel(g.Dest, path)
-		if err != nil {
-			return err
-		}
-		if filepath.Ext(info.Name()) == ".accio" {
-			tpl, err := templateEngine.Parse(b, data)
-			if err != nil {
-				return err
-			}
-			if f := tpl.Filename(); f != "" {
-				filename = f
-			}
-			if tpl.Skip() {
-				return nil
-			}
-			err = writer.Write(filename, tpl.Body())
-			if err != nil {
-				return err
-			}
-			return nil
-		}
-		err = writer.Write(filename, b)
-		if err != nil {
-			return err
-		}
-		return nil
-	})
 }
 
 func (g *Generator) prompt(prompter Prompter) (data map[string]interface{}, err error) {

@@ -36,6 +36,8 @@ var addCmd = &cobra.Command{
 		}
 		repo := generators.NewFileSystemRepository(path)
 		c, err := repo.Parse()
+		// paths, err := repo.Scan(fs)
+		// ParseGenerators(paths)
 		if err != nil {
 			return err
 		}
