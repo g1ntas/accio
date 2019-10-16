@@ -3,6 +3,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"github.com/g1ntas/accio/fs"
 	"github.com/g1ntas/accio/generators"
 	"os"
 	"path/filepath"
@@ -29,15 +30,15 @@ var addCmd = &cobra.Command{
 		return nil
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
+		filesystem := fs.NewNativeFS() // todo: share between commands
+
 		// todo: add cosmetics: better messages, more information, colors
 		path, err := filepath.Abs(args[0])
 		if err != nil {
 			return err
 		}
-		repo := generators.NewFileSystemRepository(path)
-		c, err := repo.Parse()
-		// paths, err := repo.Scan(fs)
-		// ParseGenerators(paths)
+		repo := generators.NewRepository(filepath.ToSlash(path))
+		c, err := repo.ImportGenerators(filesystem)
 		if err != nil {
 			return err
 		}

@@ -2,13 +2,11 @@ package generators
 
 import (
 	"github.com/BurntSushi/toml"
-	"io"
-	"io/ioutil"
 	"path"
 	"path/filepath"
 )
 
-const ManifestFilename string = ".accio.toml"
+const manifestFilename string = ".accio.toml"
 
 type Generator struct {
 	Dest        string
@@ -32,11 +30,11 @@ type Template interface {
 }
 
 type Writer interface {
-	WriteFile(name string, writer io.Writer) error
+	WriteFile(name string, data []byte) error
 }
 
 type Reader interface {
-	ReadFile(name string) (io.Reader, error)
+	ReadFile(name string) ([]byte, error)
 }
 
 type Walker interface {
@@ -53,7 +51,10 @@ func (e *GeneratorError) Error() string {
 }
 
 func NewGenerator(dir string) *Generator {
-	return &Generator{Dest: dir}
+	return &Generator{
+		Dest: dir,
+		Prompts: make(PromptMap),
+	}
 }
 
 func (g *Generator) wrapErr(operation string, err error) error {
@@ -64,12 +65,8 @@ func (g *Generator) wrapErr(operation string, err error) error {
 
 }
 
-func (g *Generator) ReadConfig(r io.Reader) error {
-	byt, err := ioutil.ReadAll(r)
-	if err != nil {
-		return err
-	}
-	err = toml.Unmarshal(byt, &g)
+func (g *Generator) ReadConfig(b []byte) error {
+	err := toml.Unmarshal(b, &g)
 	if err != nil {
 		return err
 	}
@@ -78,7 +75,7 @@ func (g *Generator) ReadConfig(r io.Reader) error {
 }
 
 func (g *Generator) ManifestPath() string {
-	return path.Join(g.Dest, ManifestFilename)
+	return path.Join(g.Dest, manifestFilename)
 }
 
 func (g *Generator) prompt(prompter Prompter) (data map[string]interface{}, err error) {

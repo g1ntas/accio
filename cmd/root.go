@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"github.com/g1ntas/accio/generators"
+	"github.com/g1ntas/accio/generators/gob"
 	"github.com/spf13/cobra"
 	"os"
 	"path/filepath"
@@ -52,7 +53,7 @@ func registryPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, fmt.Sprintf("registry.%s", generators.SerializationFormat)), nil
+	return filepath.Join(dir, "registry.gob"), nil
 }
 
 // loadRegistry reads registry file from user config directory and stores data in struct.
@@ -75,7 +76,7 @@ func loadRegistry() (*generators.Registry, error) {
 			panic(err)
 		}
 	}()
-	reg, err := generators.ReadRegistry(f)
+	reg, err := gob.Unserialize(f)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +104,7 @@ func saveRegistry(reg *generators.Registry) error {
 			panic(err)
 		}
 	}()
-	err = generators.WriteRegistry(f, reg)
+	err = gob.Serialize(f, reg)
 	if err != nil {
 		return err
 	}

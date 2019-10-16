@@ -28,7 +28,7 @@ func NewRunner(p Prompter, fs Filesystem, tpl TemplateEngine) *Runner {
 }
 
 func (r *Runner) Run(gen *Generator, forceOverwrite bool) error {
-	manifestPath := path.Join(gen.Dest, ManifestFilename)
+	manifestPath := path.Join(gen.Dest, manifestFilename)
 	data, err := gen.prompt(r.prompter)
 	if err != nil {
 		return err
