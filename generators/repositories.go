@@ -4,7 +4,6 @@ import (
 	"errors"
 	"io"
 	"os"
-	"path"
 	"path/filepath"
 )
 
@@ -24,35 +23,57 @@ func (r *FileSystemRepository) Dir() string {
 	return r.Path
 }
 
-func (r *FileSystemRepository) Parse() (count int, err error) {
-	err = filepath.Walk(r.Dest(), func(path string, info os.FileInfo, err error) error {
+func (r *FileSystemRepository) ImportGenerators(wr ReaderWalker) (count int, err error) {
+	gen, err := parseGeneratorDir(wr, r.Dir())
+	if err != nil && !os.IsNotExist(err) {
+		return 0, err
+	}
+	if os.IsNotExist(err) {
+		generators, err := parseGeneratorSubdirectories(wr, r.Dir())
 		if err != nil {
-			return err
+			return 0, err
 		}
-		if !info.IsDir() {
-			return nil
-		}
-		gen := NewGenerator(path)
-		err = gen.NewGeneratorFromConfig()
-		if err != nil && !os.IsNotExist(err) {
-			return err
-		}
-		if err == nil {
-			if err = r.addGenerator(gen); err != nil {
-				return err
-			}
-			count++
-		}
-		// if path is a root directory, scan one level deeper
-		if path == r.Dest() {
-			return nil
-		}
-		return filepath.SkipDir
-	})
+	}
+	os.IsNotExist(err)
 	if err != nil {
 		return 0, err
 	}
 	return count, nil
+}
+
+func parseGeneratorSubdirectories(wr ReaderWalker, root string) (generators []*Generator, err error) {
+	generators = make([]*Generator, 5, 0)
+	err = wr.Walk(root, func(dest string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() || dest == root {
+			return nil
+		}
+		gen, err := parseGeneratorDir(wr, dest)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return filepath.SkipDir
+			}
+			return err
+		}
+		generators = append(generators, gen)
+		return filepath.SkipDir
+	})
+	return
+}
+
+func parseGeneratorDir(r Reader, dir string) (*Generator, error) {
+	gen := NewGenerator(dir)
+	reader, err := r.ReadFile(gen.ManifestPath())
+	if err != nil {
+		return nil, err
+	}
+	err = gen.ReadConfig(reader)
+	if err != nil {
+		return nil, err
+	}
+	return gen, nil
 }
 
 func (r *FileSystemRepository) addGenerator(g *Generator) error {
@@ -60,48 +81,5 @@ func (r *FileSystemRepository) addGenerator(g *Generator) error {
 		return g.wrapErr("add generator", errors.New("already exists within same repository"))
 	}
 	r.Generators[g.Name] = g
-	return nil
-}
-
-type GeneratorFinder struct {
-	wlk Walker
-	repo *FileSystemRepository
-	paths []string
-}
-
-func (f *GeneratorFinder) FindManifests() ([]string, error) {
-	err := f.wlk.Walk(f.repo.Dir(), f.findInRoot)
-	if err != nil && err != io.EOF {
-		return []string{}, err
-	}
-	return f.paths, nil
-}
-
-func (f *GeneratorFinder) findInRoot(pth string, mode os.FileMode, err error) error {
-	if err != nil {
-		return err
-	}
-	// manifests can only be located in root directory or one level deeper
-	if mode.IsDir() && pth != f.repo.Dir() {
-		return f.wlk.Walk(pth, f.findInSubdirectory)
-	}
-	if path.Base(pth) == ManifestFilename {
-		f.paths = append(f.paths, pth)
-		return io.EOF
-	}
-	return nil
-}
-
-func (f *GeneratorFinder) findInSubdirectory(pth string, mode os.FileMode, err error) error {
-	if err != nil {
-		return err
-	}
-	if mode.IsDir() {
-		return filepath.SkipDir
-	}
-	if path.Base(pth) == ManifestFilename {
-		f.paths = append(f.paths, pth)
-		return io.EOF
-	}
 	return nil
 }

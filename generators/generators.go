@@ -1,8 +1,10 @@
 package generators
 
 import (
+	"github.com/BurntSushi/toml"
+	"io"
 	"io/ioutil"
-	"os"
+	"path"
 	"path/filepath"
 )
 
@@ -30,16 +32,20 @@ type Template interface {
 }
 
 type Writer interface {
-	WriteFile(filename string, content []byte) error
+	WriteFile(name string, writer io.Writer) error
 }
 
 type Reader interface {
-	ReadFile(path string) ([]byte, error)
+	ReadFile(name string) (io.Reader, error)
 }
 
-type WalkFunc func(path string, info os.FileMode, err error) error
 type Walker interface {
-	Walk(root string, walkFn WalkFunc) error
+	Walk(root string, walkFn filepath.WalkFunc) error
+}
+
+type ReaderWalker interface {
+	Reader
+	Walker
 }
 
 func (e *GeneratorError) Error() string {
@@ -58,28 +64,8 @@ func (g *Generator) wrapErr(operation string, err error) error {
 
 }
 
-/*func NewGeneratorFromConfig(r io.Reader) error {
-	err = toml.Unmarshal(r, &g)
-	if err != nil {
-		return err
-	}
-	// todo: validate parsed data
-	return nil
-}
-*/
-func NewGeneratorFromConfig(dest string) error {
-	info, err := os.Stat(dest)
-	if err != nil {
-		return err
-	}
-	if info.IsDir() {
-		return &os.PathError{
-			Op:   "parse manifest",
-			Path: dest,
-			Err:  errors.New("is a directory, but expected a file"),
-		}
-	}
-	byt, err := ioutil.ReadFile(dest)
+func (g *Generator) ReadConfig(r io.Reader) error {
+	byt, err := ioutil.ReadAll(r)
 	if err != nil {
 		return err
 	}
@@ -89,6 +75,10 @@ func NewGeneratorFromConfig(dest string) error {
 	}
 	// todo: validate parsed data
 	return nil
+}
+
+func (g *Generator) ManifestPath() string {
+	return path.Join(g.Dest, ManifestFilename)
 }
 
 func (g *Generator) prompt(prompter Prompter) (data map[string]interface{}, err error) {
