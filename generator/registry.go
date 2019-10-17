@@ -1,4 +1,4 @@
-package generators
+package generator
 
 import (
 	"errors"
@@ -23,4 +23,14 @@ func (r *Registry) AddRepository(repo *Repository) error {
 	}
 	r.Repos[repo.Path] = repo
 	return nil
+}
+
+func (r *Registry) FindGenerators(name string) []*Generator {
+	matches := make([]*Generator, 1, 0)
+	for _, repo := range r.Repos {
+		if g, ok := repo.Generators[name]; ok {
+			matches = append(matches, g)
+		}
+	}
+	return matches
 }

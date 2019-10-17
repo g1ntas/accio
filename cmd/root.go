@@ -2,14 +2,14 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/g1ntas/accio/generators"
-	"github.com/g1ntas/accio/generators/gob"
+	"github.com/g1ntas/accio/generator"
+	"github.com/g1ntas/accio/generator/gob"
 	"github.com/spf13/cobra"
 	"os"
 	"path/filepath"
 )
 
-var registry *generators.Registry
+var registry *generator.Registry
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -59,14 +59,14 @@ func registryPath() (string, error) {
 // loadRegistry reads registry file from user config directory and stores data in struct.
 // If registry file does not exist within user config directory,
 // then new registry struct is returned instead.
-func loadRegistry() (*generators.Registry, error) {
+func loadRegistry() (*generator.Registry, error) {
 	path, err := registryPath()
 	if err != nil {
 		return nil, err
 	}
 	f, err := os.Open(path)
 	if os.IsNotExist(err) {
-		return generators.NewRegistry(), nil
+		return generator.NewRegistry(), nil
 	}
 	if err != nil {
 		return nil, err
@@ -84,7 +84,7 @@ func loadRegistry() (*generators.Registry, error) {
 }
 
 // Save stores all the data from registry struct into configured registry file.
-func saveRegistry(reg *generators.Registry) error {
+func saveRegistry(reg *generator.Registry) error {
 	path, err := registryPath()
 	if err != nil {
 		return err

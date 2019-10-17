@@ -1,4 +1,4 @@
-package generators
+package generator
 
 import (
 	"os"
@@ -6,24 +6,25 @@ import (
 	"path/filepath"
 )
 
-type Filesystem interface {
-	ReadFile(filename string) ([]byte, error)
-	WriteFile(filename string, data []byte) error
-	Walk(root string, walkFn filepath.WalkFunc) error
+const templateExt = ".accio"
+
+type Template interface {
+	Body() []byte
+	Filename() string
+	Skip() bool
 }
 
 type TemplateEngine interface {
 	Parse(b []byte, data map[string]interface{}) (Template, error)
-	Extension() string
 }
 
 type Runner struct {
 	prompter Prompter
-	fs Filesystem
+	fs ReaderWalkerWriter
 	tplEngine TemplateEngine
 }
 
-func NewRunner(p Prompter, fs Filesystem, tpl TemplateEngine) *Runner {
+func NewRunner(p Prompter, fs ReaderWalkerWriter, tpl TemplateEngine) *Runner {
 	return &Runner{p, fs, tpl}
 }
 
@@ -75,7 +76,6 @@ func (r *Runner) Run(gen *Generator, forceOverwrite bool) error {
 }
 
 func (r *Runner) hasTemplateExtension(path string) bool {
-	ext := "." + r.tplEngine.Extension()
 	l := len(path)
-	return path[l-len(ext):l] == ext
+	return path[l-len(templateExt):l] == templateExt
 }

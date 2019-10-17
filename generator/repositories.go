@@ -1,4 +1,4 @@
-package generators
+package generator
 
 import (
 	"errors"
@@ -65,11 +65,11 @@ func (r *Repository) importGeneratorsFromSubdirs(wr ReaderWalker) error {
 
 func parseGeneratorDir(r Reader, dir string) (*Generator, error) {
 	gen := NewGenerator(dir)
-	b, err := r.ReadFile(gen.ManifestPath())
+	b, err := r.ReadFile(gen.manifestPath())
 	if err != nil {
 		return nil, err
 	}
-	err = gen.ReadConfig(b)
+	err = gen.readConfig(b)
 	if err != nil {
 		return nil, err
 	}

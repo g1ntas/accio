@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/g1ntas/accio/fs"
-	"github.com/g1ntas/accio/generators"
+	"github.com/g1ntas/accio/generator"
 	"os"
 	"path/filepath"
 
@@ -37,7 +37,7 @@ var addCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		repo := generators.NewRepository(filepath.ToSlash(path))
+		repo := generator.NewRepository(filepath.ToSlash(path))
 		c, err := repo.ImportGenerators(filesystem)
 		if err != nil {
 			return err

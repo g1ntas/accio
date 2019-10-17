@@ -1,4 +1,4 @@
-package generators
+package generator
 
 import (
 	"errors"
@@ -7,13 +7,11 @@ import (
 )
 
 type Prompter interface {
-	Get(message, help string, validator InputValidatorFunc) (string, error)
+	Get(message, help string, validator func(val string) error) (string, error)
 	SelectOne(message, help string, options []string) (string, error)
 	SelectMultiple(message, help string, options []string) ([]string, error)
 	Confirm(message, help string) (bool, error)
 }
-
-type InputValidatorFunc func(val string) error
 
 const (
 	promptInput       = "input"

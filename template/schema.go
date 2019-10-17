@@ -1,4 +1,4 @@
-package templates
+package template
 
 /* Markup rules:
 filename:

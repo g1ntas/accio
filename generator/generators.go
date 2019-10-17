@@ -1,4 +1,4 @@
-package generators
+package generator
 
 import (
 	"github.com/BurntSushi/toml"
@@ -23,12 +23,6 @@ type GeneratorError struct {
 	Err  error
 }
 
-type Template interface {
-	Body() []byte
-	Filename() string
-	Skip() bool
-}
-
 type Writer interface {
 	WriteFile(name string, data []byte) error
 }
@@ -44,6 +38,12 @@ type Walker interface {
 type ReaderWalker interface {
 	Reader
 	Walker
+}
+
+type ReaderWalkerWriter interface {
+	Reader
+	Walker
+	Writer
 }
 
 func (e *GeneratorError) Error() string {
@@ -65,7 +65,7 @@ func (g *Generator) wrapErr(operation string, err error) error {
 
 }
 
-func (g *Generator) ReadConfig(b []byte) error {
+func (g *Generator) readConfig(b []byte) error {
 	err := toml.Unmarshal(b, &g)
 	if err != nil {
 		return err
@@ -74,7 +74,7 @@ func (g *Generator) ReadConfig(b []byte) error {
 	return nil
 }
 
-func (g *Generator) ManifestPath() string {
+func (g *Generator) manifestPath() string {
 	return path.Join(g.Dest, manifestFilename)
 }
 
