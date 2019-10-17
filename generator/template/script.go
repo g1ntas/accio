@@ -26,7 +26,7 @@ squares = [x*x for x in range(10)]
 	// This dictionary defines the pre-declared environment.
 	predeclared := starlark.StringDict{
 		"greeting": starlark.String("hello"),
-		"repeat":   starlark.NewBuiltin("repeat", repeat),
+		//"repeat":   starlark.NewBuiltin("repeat", repeat),
 	}
 
 	// Execute a program.

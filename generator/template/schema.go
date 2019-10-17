@@ -27,7 +27,7 @@ partial:
 		{ full-name: trim-indentation, unique: false, pattern: (true|false) }
 */
 
-type Schema struct {
+/*type Schema struct {
 	Tags map[string]*TagSchema
 }
 
@@ -98,6 +98,6 @@ var schema = &Schema{
 	return true
 }*/
 
-func IsBoolean(value string) bool {
+/*func IsBoolean(value string) bool {
 	return value == "true" || value == "false"
-}
+}*/

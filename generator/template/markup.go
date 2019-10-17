@@ -1,10 +1,11 @@
 package template
 
+/*
 import (
 	"errors"
 	"fmt"
 	"github.com/g1ntas/accio/markup"
-	"io/ioutil"
+	"fs/ioutil"
 )
 
 type Markup struct {
@@ -73,7 +74,7 @@ func parseVariable(tag *markup.TagNode) (*Var, error) {
 	}
 	return tag.Body.Content, nil
 }*/
-
+/*
 func parse(p *markup.Parser) (*Markup, error) {
 	mrkp := &Markup{}
 	for _, tag := range p.Tags {
@@ -103,3 +104,4 @@ func parse(p *markup.Parser) (*Markup, error) {
 	}
 	return mrkp, nil
 }
+*/

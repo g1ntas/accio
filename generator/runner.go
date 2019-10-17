@@ -3,7 +3,7 @@ package generator
 import (
 	"os"
 	"path"
-	"path/filepath"
+	"strings"
 )
 
 const templateExt = ".accio"
@@ -28,7 +28,7 @@ func NewRunner(p Prompter, fs ReaderWalkerWriter, tpl TemplateEngine) *Runner {
 	return &Runner{p, fs, tpl}
 }
 
-func (r *Runner) Run(gen *Generator, forceOverwrite bool) error {
+func (r *Runner) Run(gen *Generator, writeDir string, forceOverwrite bool) error {
 	manifestPath := path.Join(gen.Dest, manifestFilename)
 	data, err := gen.prompt(r.prompter)
 	if err != nil {
@@ -45,18 +45,17 @@ func (r *Runner) Run(gen *Generator, forceOverwrite bool) error {
 		if err != nil {
 			return err
 		}
-		filename, err := filepath.Rel(gen.Dest, pth)
+		filename := strings.Replace(pth, gen.Dest, "", 1)
 		if err != nil {
 			return err
 		}
-		// todo: pass cwd
 		if r.hasTemplateExtension(pth) {
 			tpl, err := r.tplEngine.Parse(b, data)
 			if err != nil {
 				return err
 			}
 			if f := tpl.Filename(); f != "" {
-				filename = f
+				filename = path.Join(gen.Dest, f)
 			}
 			if tpl.Skip() {
 				return nil

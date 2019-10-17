@@ -2,15 +2,15 @@ package generator
 
 import (
 	"github.com/BurntSushi/toml"
+	"os"
 	"path"
-	"path/filepath"
 )
 
 const manifestFilename string = ".accio.toml"
 
 type Generator struct {
 	Dest        string
-	Name        string    `toml:"full-name"`
+	Name        string    `toml:"name"`
 	Description string    `toml:"description"`
 	Help        string    `toml:"help"`
 	Prompts     PromptMap `toml:"prompts"`
@@ -32,7 +32,16 @@ type Reader interface {
 }
 
 type Walker interface {
-	Walk(root string, walkFn filepath.WalkFunc) error
+	Walk(root string, walkFn func(path string, info os.FileInfo, err error) error) error
+}
+
+type DirWriter interface {
+	WriteFile(name string, data []byte) error
+}
+
+type DirReader interface {
+	ReadFile(name string) ([]byte, error)
+	Walk(root string, walkFn func(path string, info os.FileInfo, err error) error) error
 }
 
 type ReaderWalker interface {
@@ -78,7 +87,8 @@ func (g *Generator) manifestPath() string {
 	return path.Join(g.Dest, manifestFilename)
 }
 
-func (g *Generator) prompt(prompter Prompter) (data map[string]interface{}, err error) {
+func (g *Generator) prompt(prompter Prompter) (map[string]interface{}, error) {
+	data := make(map[string]interface{})
 	for key, p := range g.Prompts {
 		val, err := p.prompt(prompter)
 		if err != nil {
@@ -86,5 +96,5 @@ func (g *Generator) prompt(prompter Prompter) (data map[string]interface{}, err 
 		}
 		data[key] = val
 	}
-	return
+	return data, nil
 }

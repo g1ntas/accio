@@ -1,5 +1,7 @@
 package template
 
+import "github.com/g1ntas/accio/generator"
+
 type Template struct {
 }
 
@@ -18,7 +20,7 @@ func (t *Template) Skip() bool {
 type Engine struct{
 }
 
-func (e *Engine) Parse(b []byte, data map[string]interface{}) (Template, error) {
+func (e *Engine) Parse(b []byte, data map[string]interface{}) (generator.Template, error) {
 	return &Template{}, nil
 }
 

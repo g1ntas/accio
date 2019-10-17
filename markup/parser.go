@@ -48,7 +48,6 @@ type Parser struct {
 	lex *lexer
 	token token  // token currently being parsed.
 	tag *TagNode // tag currently being built.
-	schema *Schema
 }
 
 // parseStateFn represents the state of the parser as a function that returns the next state.

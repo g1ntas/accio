@@ -16,7 +16,7 @@ func (p *CLI) Get(message, help string, validate func(val string) error) (val st
 		Message: message,
 		Help: help,
 	}
-	err = survey.AskOne(prompt, val, survey.WithValidator(func(answer interface{}) error {
+	err = survey.AskOne(prompt, &val, survey.WithValidator(func(answer interface{}) error {
 		if err := validate(answer.(string)); err != nil {
 			return err
 		}

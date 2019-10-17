@@ -6,7 +6,8 @@ import (
 	"github.com/g1ntas/accio/fs"
 	"github.com/g1ntas/accio/generator"
 	"github.com/g1ntas/accio/prompter"
-	"github.com/g1ntas/accio/template"
+	"github.com/g1ntas/accio/generator/template"
+	"os"
 
 	"github.com/spf13/cobra"
 )
@@ -18,9 +19,14 @@ var runCmd = &cobra.Command{
 	Long: ``,
 	Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		filesystem := fs.NewNativeFS()
+		// todo: apply working dir flag
+		writeDir, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		scopedFs := fs.NewNativeFS()
 		promp := prompter.NewCLIPrompter()
-		tpl := template.Engine{}
+		tpl := &template.Engine{}
 
 		generators := registry.FindGenerators(args[0])
 		if len(generators) == 0 {
@@ -32,8 +38,11 @@ var runCmd = &cobra.Command{
 		} else {
 			gen = generators[0]
 		}
-		runner := generator.NewRunner(promp, filesystem, tpl)
-		// todo: run generators
+		runner := generator.NewRunner(promp, scopedFs, tpl)
+		err = runner.Run(gen, writeDir, false)
+		if err != nil {
+			return err
+		}
 		fmt.Println("run called")
 		return nil
 	},

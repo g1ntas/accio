@@ -6,7 +6,6 @@ import (
 )
 
 type NativeFS struct {
-
 }
 
 func NewNativeFS() *NativeFS {
