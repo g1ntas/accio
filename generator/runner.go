@@ -3,7 +3,7 @@ package generator
 import (
 	"os"
 	"path"
-	"strings"
+	"path/filepath"
 )
 
 const templateExt = ".accio"
@@ -34,39 +34,39 @@ func (r *Runner) Run(gen *Generator, writeDir string, forceOverwrite bool) error
 	if err != nil {
 		return err
 	}
-	return r.fs.Walk(gen.Dest, func(pth string, info os.FileInfo, err error) error {
+	return r.fs.Walk(gen.Dest, func(abspath string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		if info.IsDir() || pth == manifestPath {
+		if !info.Mode().IsRegular() || abspath == manifestPath { // ignore non-files and manifest
 			return nil
 		}
-		b, err := r.fs.ReadFile(pth)
+		b, err := r.fs.ReadFile(abspath)
 		if err != nil {
 			return err
 		}
-		filename := strings.Replace(pth, gen.Dest, "", 1)
+		relpath, err := filepath.Rel(gen.Dest, abspath)
 		if err != nil {
 			return err
 		}
-		if r.hasTemplateExtension(pth) {
+		if r.hasTemplateExtension(abspath) {
 			tpl, err := r.tplEngine.Parse(b, data)
 			if err != nil {
 				return err
 			}
 			if f := tpl.Filename(); f != "" {
-				filename = path.Join(gen.Dest, f)
+				// todo: do not allow to write outside write dir
+				relpath = f
+			} else {
+				// remove template extension
+				relpath = relpath[:len(relpath)-len(templateExt)]
 			}
 			if tpl.Skip() {
 				return nil
 			}
-			err = r.fs.WriteFile(filename, tpl.Body())
-			if err != nil {
-				return err
-			}
-			return nil
+			b = tpl.Body()
 		}
-		err = r.fs.WriteFile(filename, b)
+		err = r.fs.WriteFile(filepath.Join(writeDir, relpath), b, info.Mode())
 		if err != nil {
 			return err
 		}
@@ -77,4 +77,9 @@ func (r *Runner) Run(gen *Generator, writeDir string, forceOverwrite bool) error
 func (r *Runner) hasTemplateExtension(path string) bool {
 	l := len(path)
 	return path[l-len(templateExt):l] == templateExt
+}
+
+func secureJoin(root string, untrustedPath string) string {
+	path := filepath.Clean(untrustedPath)
+	//path = filepath.SplitList()
 }

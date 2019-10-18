@@ -4,6 +4,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"os"
 	"path"
+	"path/filepath"
 )
 
 const manifestFilename string = ".accio.toml"
@@ -24,7 +25,7 @@ type GeneratorError struct {
 }
 
 type Writer interface {
-	WriteFile(name string, data []byte) error
+	WriteFile(name string, data []byte, perm os.FileMode) error
 }
 
 type Reader interface {
@@ -32,16 +33,7 @@ type Reader interface {
 }
 
 type Walker interface {
-	Walk(root string, walkFn func(path string, info os.FileInfo, err error) error) error
-}
-
-type DirWriter interface {
-	WriteFile(name string, data []byte) error
-}
-
-type DirReader interface {
-	ReadFile(name string) ([]byte, error)
-	Walk(root string, walkFn func(path string, info os.FileInfo, err error) error) error
+	Walk(root string, walkFn filepath.WalkFunc) error
 }
 
 type ReaderWalker interface {

@@ -24,7 +24,7 @@ var runCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		scopedFs := fs.NewNativeFS()
+		filesystem := fs.NewNativeFS()
 		promp := prompter.NewCLIPrompter()
 		tpl := &template.Engine{}
 
@@ -38,7 +38,7 @@ var runCmd = &cobra.Command{
 		} else {
 			gen = generators[0]
 		}
-		runner := generator.NewRunner(promp, scopedFs, tpl)
+		runner := generator.NewRunner(promp, filesystem, tpl)
 		err = runner.Run(gen, writeDir, false)
 		if err != nil {
 			return err

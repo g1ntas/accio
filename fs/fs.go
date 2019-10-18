@@ -2,6 +2,7 @@ package fs
 
 import (
 	"io/ioutil"
+	"os"
 	"path/filepath"
 )
 
@@ -12,8 +13,9 @@ func NewNativeFS() *NativeFS {
 	return &NativeFS{}
 }
 
-func (fs *NativeFS) WriteFile(name string, data []byte) error {
-	return ioutil.WriteFile(name, data, 0775)
+func (fs *NativeFS) WriteFile(name string, data []byte, perm os.FileMode) error {
+	// create dir if doesn't exist
+	return ioutil.WriteFile(name, data, perm)
 }
 
 func (fs *NativeFS) ReadFile(name string) ([]byte, error) {
