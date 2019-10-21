@@ -4,6 +4,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 )
 
 const templateExt = ".accio"
@@ -38,7 +39,8 @@ func (r *Runner) Run(gen *Generator, writeDir string, forceOverwrite bool) error
 		if err != nil {
 			return err
 		}
-		if !info.Mode().IsRegular() || abspath == manifestPath { // ignore non-files and manifest
+		// ignore non-files and manifest
+		if !info.Mode().IsRegular() || abspath == manifestPath {
 			return nil
 		}
 		b, err := r.fs.ReadFile(abspath)
@@ -55,7 +57,6 @@ func (r *Runner) Run(gen *Generator, writeDir string, forceOverwrite bool) error
 				return err
 			}
 			if f := tpl.Filename(); f != "" {
-				// todo: do not allow to write outside write dir
 				relpath = f
 			} else {
 				// remove template extension
@@ -66,7 +67,7 @@ func (r *Runner) Run(gen *Generator, writeDir string, forceOverwrite bool) error
 			}
 			b = tpl.Body()
 		}
-		err = r.fs.WriteFile(filepath.Join(writeDir, relpath), b, info.Mode())
+		err = r.fs.WriteFile(joinWithinRoot(writeDir, relpath), b, info.Mode())
 		if err != nil {
 			return err
 		}
@@ -79,7 +80,17 @@ func (r *Runner) hasTemplateExtension(path string) bool {
 	return path[l-len(templateExt):l] == templateExt
 }
 
-func secureJoin(root string, untrustedPath string) string {
-	path := filepath.Clean(untrustedPath)
-	//path = filepath.SplitList()
+// joinWithinRoot joins two paths ensuring that one (relative) path ends up
+// inside the other (root) path. If relative path evaluates to be outside root
+// directory, then it's treated as there's no parent directory and root is final.
+func joinWithinRoot(root, relpath string) string {
+	sep := string(filepath.Separator)
+	parts := strings.Split(filepath.Clean(relpath), sep)
+	for _, part := range parts {
+		if part != ".." {
+			break
+		}
+		parts = parts[1:]
+	}
+	return filepath.Join(root, strings.Join(parts, sep))
 }
