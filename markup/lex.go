@@ -1,5 +1,5 @@
 // Inspired by Bob Pike's talk and text/template library.
-// Parts of the source code was reused from golang/text/template/parse/lex.go.
+// Parts of the source code were reused from golang/text/template/parse/lex.go.
 
 package markup
 

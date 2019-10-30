@@ -122,7 +122,6 @@ func parseTag(p *Parser) parseStateFn {
 }
 
 func finishParsingTag(p *Parser) parseStateFn {
-	// todo: perform schema validation
 	p.Tags = append(p.Tags, p.tag)
 	p.tag = nil
 	switch p.token.typ {
