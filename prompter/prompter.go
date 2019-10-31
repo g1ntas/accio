@@ -52,6 +52,18 @@ func (p *CLI) SelectOne(message, help string, options []string) (val string, err
 	return
 }
 
+func (p *CLI) SelectOneIndex(message, help string, options []string) (val int, err error) {
+	prompt := &survey.Select{
+		Message: message,
+		Options: options,
+	}
+	err = survey.AskOne(prompt, &val)
+	if err != nil {
+		return -1, err
+	}
+	return
+}
+
 func (p *CLI) SelectMultiple(message, help string, options []string) ([]string, error) {
 	val := make([]string, len(options), 0)
 	prompt := &survey.MultiSelect{

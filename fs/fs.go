@@ -28,3 +28,7 @@ func (fs *NativeFS) ReadFile(name string) ([]byte, error) {
 func (fs *NativeFS) Walk(root string, walkFn filepath.WalkFunc) error {
 	return filepath.Walk(root, walkFn)
 }
+
+func (fs *NativeFS) Stat(name string) (os.FileInfo, error) {
+	return os.Stat(name)
+}

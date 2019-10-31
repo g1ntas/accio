@@ -55,7 +55,7 @@ func (t tree) get(path string) *fileMock {
 
 // filesystem mock implementation
 type fsMock struct {
-	files tree
+	files  tree
 	output tree
 }
 
@@ -130,49 +130,96 @@ func equalTrees(t1, t2 tree) bool {
 }
 
 var runnerTests = []struct {
-	name   string
-	input  tree
-	output tree
+	name         string
+	input        tree
+	output       tree
+	skipExisting bool
 }{
-	{"no files", tree{}, tree{}},
-	{"ignore directories", tree{dir("a")}, tree{}},
-	{"ignore symbolic links", tree{symlink("a")}, tree{}},
-	{"ignore manifest", tree{file("generator/.accio.toml", "")}, tree{}},
-	{"write static file",
+	{"no files", tree{}, tree{}, true},
+	{"ignore directories", tree{dir("a")}, tree{}, true},
+	{"ignore symbolic links", tree{symlink("a")}, tree{}, true},
+	{
+		"ignore manifest",
+		tree{file("generator/.accio.toml", "")},
+		tree{},
+		true,
+	},
+	{
+		"write static file",
 		tree{file("generator/a.txt", "test")},
-		tree{file("output/a.txt", "test")}},
-	{"write multiple files",
+		tree{file("output/a.txt", "test")},
+		true,
+	},
+	{
+		"write multiple files",
 		tree{file("generator/a.txt", "file1"), file("generator/b.txt", "file2")},
-		tree{file("output/a.txt", "file1"), file("output/b.txt", "file2")}},
-	{"write nested files",
+		tree{file("output/a.txt", "file1"), file("output/b.txt", "file2")},
+		true,
+	},
+	{
+		"write nested files",
 		tree{dir("generator/abc"), file("generator/abc/test.txt", "file")},
-		tree{file("output/abc/test.txt", "file")}},
-	{"write template file",
-		tree{file("generator/test.txt.accio", `{"body": "test"}`)},
-		tree{file("output/test.txt", "test")}},
-	{"template | skip file",
-		tree{file("generator/test.txt.accio", `{"skip": true}`)},
-		tree{}},
-	{"template | custom filename",
-		tree{file("generator/test.txt.accio", `{"filename": "custom.txt", "body": "---"}`)},
-		tree{file("output/custom.txt", "---")}},
-	{"template | nested custom filename",
-		tree{file("generator/test.txt.accio", `{"filename": "dir/custom.txt"}`)},
-		tree{file("output/dir/custom.txt", "")}},
-	{"template | append static name if filename is directory",
-		tree{dir("output/abc"), file("generator/test.txt.accio", `{"filename": "abc"}`)},
-		tree{file("output/abc/test.txt", "")}},
-	{"template | don't write outside root",
-		tree{file("generator/test.txt.accio", `{"filename": "../../../custom.txt"}`)},
-		tree{file("output/custom.txt", "")}},
+		tree{file("output/abc/test.txt", "file")},
+		true,
+	},
+	{
+		"write template file",
+		tree{file("generator/bla.txt", `{"body": "test"}`)},
+		tree{file("output/test.txt", "test")},
+		true,
+	},
+	{
+		"template | skip file",
+		tree{file("generator/bla.txt", `{"skip": true}`)},
+		tree{},
+		true,
+	},
+	{
+		"template | custom filename",
+		tree{file("generator/bla.txt", `{"filename": "custom.txt", "body": "---"}`)},
+		tree{file("output/custom.txt", "---")},
+		true,
+	},
+	{
+		"template | nested custom filename",
+		tree{file("generator/bla.txt", `{"filename": "dir/custom.txt"}`)},
+		tree{file("output/dir/custom.txt", "")},
+		true,
+	},
+	{
+		"template | append static name if filename is directory",
+		tree{dir("output/abc"), file("generator/bla.txt", `{"filename": "abc"}`)},
+		tree{file("output/abc/test.txt", "")},
+		true,
+	},
+	{
+		"template | don't write outside root",
+		tree{file("generator/bla.txt", `{"filename": "../../../custom.txt"}`)},
+		tree{file("output/custom.txt", "")},
+		true,
+	},
+	{
+		"overwrite if file exists",
+		tree{file("generator/test.txt", "new"), file("output/test.txt", "old")},
+		tree{file("output/test.txt", "new")},
+		false,
+	},
+	{
+		"skip if file exists",
+		tree{file("generator/test.txt", "new"), file("output/test.txt", "old")},
+		tree{},
+		true,
+	},
 }
 
 func TestRunner(t *testing.T) {
 	gen := &Generator{Dest: "generator"}
 	for _, test := range runnerTests {
 		fs := &fsMock{test.input, tree{}}
-		runner := NewRunner(nil, fs, &tplEngineMock{})
-		err := runner.Run(gen, "output", false)
+		runner := NewRunner(fs, &tplEngineMock{}, "output", func(p string) bool {
+			return !test.skipExisting
+		})
+		err := runner.Run(gen, map[string]interface{}{})
 		switch {
 		case err != nil:
 			t.Errorf("%s:\nunexpected error: %v", test.name, err)
@@ -182,5 +229,13 @@ func TestRunner(t *testing.T) {
 	}
 }
 
-// todo: handle errors
-// todo: handle existing files (using external functions)
+var configTests = []struct {
+	name  string
+	input string
+	gen   *Generator
+	err   error
+}{
+	
+}
+// todo: test PromptAll if all prompts are called
+// todo: test config reading

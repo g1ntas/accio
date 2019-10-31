@@ -27,19 +27,13 @@ type GeneratorError struct {
 }
 
 type Template struct {
-	Body string
+	Body     string
 	Filename string
-	Skip bool
+	Skip     bool
 }
 
 type TemplateEngine interface {
 	Parse(b []byte, data map[string]interface{}) (*Template, error)
-}
-
-type Runner struct {
-	prompter  Prompter
-	fs        Filesystem
-	tplEngine TemplateEngine
 }
 
 type Writer interface {
@@ -72,9 +66,21 @@ func (e *GeneratorError) Error() string {
 
 func NewGenerator(dir string) *Generator {
 	return &Generator{
-		Dest: dir,
+		Dest:    dir,
 		Prompts: make(PromptMap),
 	}
+}
+
+func (g *Generator) PromptAll(prompter Prompter) (map[string]interface{}, error) {
+	data := make(map[string]interface{})
+	for key, p := range g.Prompts {
+		val, err := p.Prompt(prompter)
+		if err != nil {
+			return map[string]interface{}{}, err
+		}
+		data[key] = val
+	}
+	return data, nil
 }
 
 func (g *Generator) wrapErr(operation string, err error) error {
@@ -98,68 +104,67 @@ func (g *Generator) manifestPath() string {
 	return path.Join(g.Dest, manifestFilename)
 }
 
-func (g *Generator) prompt(prompter Prompter) (map[string]interface{}, error) {
-	data := make(map[string]interface{})
-	for key, p := range g.Prompts {
-		val, err := p.prompt(prompter)
-		if err != nil {
-			return map[string]interface{}{}, err
-		}
-		data[key] = val
-	}
-	return data, nil
+type Runner struct {
+	fs        Filesystem
+	tplEngine TemplateEngine
+	writeDir  string // absolute path to the directory to write generated files
+
+	// Confirmation callback to overwrite existing files.
+	// Returning true overwrites files, and false skips them.
+	overwriteFunc func(path string) bool
 }
 
-func NewRunner(p Prompter, fs Filesystem, tpl TemplateEngine) *Runner {
-	return &Runner{p, fs, tpl}
+func NewRunner(fs Filesystem, tpl TemplateEngine, dir string, overwriteFunc func(path string) bool) *Runner {
+	return &Runner{
+		fs:            fs,
+		tplEngine:     tpl,
+		writeDir:      dir,
+		overwriteFunc: overwriteFunc,
+	}
 }
 
-func (r *Runner) Run(gen *Generator, writeDir string, forceOverwrite bool) error {
-	manifestPath := path.Join(gen.Dest, manifestFilename)
-	data, err := gen.prompt(r.prompter)
-	if err != nil {
-		return err
-	}
-	return r.fs.Walk(gen.Dest, func(abspath string, info os.FileInfo, err error) error {
+func (r *Runner) Run(generator *Generator, data map[string]interface{}) error {
+	return r.fs.Walk(generator.Dest, func(abspath string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 		// ignore non-files and manifest
-		if !info.Mode().IsRegular() || abspath == manifestPath {
+		if !info.Mode().IsRegular() || abspath == generator.manifestPath() {
 			return nil
 		}
-		b, err := r.fs.ReadFile(abspath)
+		body, err := r.fs.ReadFile(abspath)
 		if err != nil {
 			return err
 		}
-		relpath, err := filepath.Rel(gen.Dest, abspath)
-		basename := filepath.Base(relpath)
+		relpath, err := filepath.Rel(generator.Dest, abspath)
 		if err != nil {
 			return err
 		}
-		if r.hasTemplateExtension(basename) {
-			tpl, err := r.tplEngine.Parse(b, data)
-			if err != nil {
+		target := filepath.Join(r.writeDir, relpath)
+		if hasTemplateExtension(target) {
+			target = target[:len(target)-len(templateExt)] // remove ext
+			tpl, err := r.tplEngine.Parse(body, data)
+			switch {
+			case err != nil:
 				return err
-			}
-			basename = basename[:len(basename)-len(templateExt)]
-			if f := tpl.Filename; f != "" {
-				relpath = f
-			} else {
-				// remove template extension
-				relpath = relpath[:len(relpath)-len(templateExt)]
-			}
-			if tpl.Skip {
+			case tpl.Skip:
 				return nil
+			case tpl.Filename != "":
+				basename := filepath.Base(target)
+				target = joinWithinRoot(r.writeDir, tpl.Filename)
+				stat, err := r.fs.Stat(target)
+				// if path is directory, then attach filename of source file
+				if err == nil && stat.IsDir() {
+					target = filepath.Join(target, basename)
+				}
 			}
-			b = []byte(tpl.Body)
+			body = []byte(tpl.Body)
 		}
-		target := joinWithinRoot(writeDir, relpath)
-		stat, err := r.fs.Stat(target)
-		if err == nil && stat.IsDir() {
-			target = filepath.Join(target, filepath.Base(basename))
+		// if file exists, call callback to decide if it should be skipped
+		if _, err := r.fs.Stat(target); err == nil && !r.overwriteFunc(target) {
+			return nil
 		}
-		err = r.fs.WriteFile(target, b, info.Mode())
+		err = r.fs.WriteFile(target, body, 0775)
 		if err != nil {
 			return err
 		}
@@ -167,10 +172,9 @@ func (r *Runner) Run(gen *Generator, writeDir string, forceOverwrite bool) error
 	})
 }
 
-func (r *Runner) hasTemplateExtension(path string) bool {
+func hasTemplateExtension(path string) bool {
 	return len(path) > len(templateExt) && path[len(path)-len(templateExt):] == templateExt
 }
-
 
 // joinWithinRoot joins two paths ensuring that one (relative) path ends up
 // inside the other (root) path. If relative path evaluates to be outside root

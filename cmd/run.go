@@ -5,11 +5,10 @@ import (
 	"fmt"
 	"github.com/g1ntas/accio/fs"
 	"github.com/g1ntas/accio/generator"
-	"github.com/g1ntas/accio/prompter"
 	"github.com/g1ntas/accio/generator/template"
-	"os"
-
+	"github.com/g1ntas/accio/prompter"
 	"github.com/spf13/cobra"
+	"os"
 )
 
 // runCmd represents the run command
@@ -33,17 +32,41 @@ var runCmd = &cobra.Command{
 			return errors.New("no generators found with a given name")
 		}
 		var gen *generator.Generator
+
 		if len(generators) > 1 {
-			// todo: prompt to choose one
+			fmt.Println("Multiple generators found:")
+
+			choices := make([]string, len(generators))
+			for i, g := range generators {
+				choices[i] = fmt.Sprintf("%s: %s", g.Name, g.Description)
+			}
+			i, err := promp.SelectOneIndex("Choose one:", "", choices)
+			if err != nil {
+				return err
+			}
+			gen = generators[i]
 		} else {
 			gen = generators[0]
 		}
-		runner := generator.NewRunner(promp, filesystem, tpl)
-		err = runner.Run(gen, writeDir, false)
+
+		runner := generator.NewRunner(filesystem, tpl, writeDir, func(path string) bool {
+			fmt.Printf("File at path %q already exists\n", path)
+			overwrite, err := promp.Confirm("Do you want to overwrite it?", "")
+			if err != nil {
+				fmt.Print(err)
+				return false
+			}
+			return overwrite
+		})
+
+		data, err := gen.PromptAll(promp)
 		if err != nil {
 			return err
 		}
-		fmt.Println("run called")
+		err = runner.Run(gen, data)
+		if err != nil {
+			return err
+		}
 		return nil
 	},
 }

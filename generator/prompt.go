@@ -20,7 +20,6 @@ const (
 	promptList        = "list"
 	promptChoice      = "choice"
 	promptMultiChoice = "multi-choice"
-	promptFile        = "file"
 )
 
 var nilValidator = func(val string) error {
@@ -29,7 +28,7 @@ var nilValidator = func(val string) error {
 
 type prompt interface {
 	kind() string
-	prompt(prompter Prompter) (interface{}, error)
+	Prompt(prompter Prompter) (interface{}, error)
 }
 
 type PromptMap map[string]prompt
@@ -48,7 +47,7 @@ func (p *Input) kind() string {
 	return promptInput
 }
 
-func (p *Input) prompt(prompter Prompter) (interface{}, error) {
+func (p *Input) Prompt(prompter Prompter) (interface{}, error) {
 	return prompter.Get(p.Msg, p.Help, nilValidator)
 }
 
@@ -62,7 +61,7 @@ func (p *Integer) kind() string {
 	return promptInteger
 }
 
-func (p *Integer) prompt(prompter Prompter) (interface{}, error) {
+func (p *Integer) Prompt(prompter Prompter) (interface{}, error) {
 	val, err := prompter.Get(p.Msg, p.Help, func(val string) error {
 		for i, r := range val {
 			if r < '0' || r > '9' || (r == '-' && i != 0) {
@@ -87,7 +86,7 @@ func (p *Confirm) kind() string {
 	return promptConfirm
 }
 
-func (p *Confirm) prompt(prompter Prompter) (interface{}, error) {
+func (p *Confirm) Prompt(prompter Prompter) (interface{}, error) {
 	return prompter.Confirm(p.Msg, p.Help)
 }
 
@@ -101,7 +100,7 @@ func (p *List) kind() string {
 	return promptList
 }
 
-func (p *List) prompt(prompter Prompter) (interface{}, error) {
+func (p *List) Prompt(prompter Prompter) (interface{}, error) {
 	val, err := prompter.Get(p.Msg, p.Help, nilValidator)
 	// todo: split string by comma
 	return val, err
@@ -118,7 +117,7 @@ func (p *Choice) kind() string {
 	return promptChoice
 }
 
-func (p *Choice) prompt(prompter Prompter) (interface{}, error) {
+func (p *Choice) Prompt(prompter Prompter) (interface{}, error) {
 	return prompter.SelectOne(p.Msg, p.Help, p.Options)
 }
 
@@ -133,25 +132,8 @@ func (p *MultiChoice) kind() string {
 	return promptMultiChoice
 }
 
-func (p *MultiChoice) prompt(prompter Prompter) (interface{}, error) {
+func (p *MultiChoice) Prompt(prompter Prompter) (interface{}, error) {
 	return prompter.SelectMultiple(p.Msg, p.Help, p.Options)
-}
-
-
-// File
-type File struct {
-	Base
-}
-
-func (p *File) kind() string {
-	return promptFile
-}
-
-func (p *File) prompt(prompter Prompter) (interface{}, error) {
-	return prompter.Get(p.Msg, p.Help, func(val string) error {
-		// todo: validate is an existing and readable file
-		return nil
-	})
 }
 
 func (m PromptMap) UnmarshalTOML(data interface{}) error {
@@ -180,8 +162,6 @@ func (m PromptMap) UnmarshalTOML(data interface{}) error {
 		case promptMultiChoice:
 			options, _ := mapping["options"].([]string)
 			m[key] = &MultiChoice{base, options}
-		case promptFile:
-			m[key] = &File{base}
 		default:
 			return fmt.Errorf("prompt %q with unknown type %q", key, typ)
 		}

@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"github.com/g1ntas/accio/generator"
-	"github.com/g1ntas/accio/generator/gob"
 	"github.com/spf13/cobra"
 	"os"
 	"path/filepath"
@@ -76,7 +75,7 @@ func loadRegistry() (*generator.Registry, error) {
 			panic(err)
 		}
 	}()
-	reg, err := gob.Unserialize(f)
+	reg, err := generator.Deserialize(f)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +103,7 @@ func saveRegistry(reg *generator.Registry) error {
 			panic(err)
 		}
 	}()
-	err = gob.Serialize(f, reg)
+	err = generator.Serialize(f, reg)
 	if err != nil {
 		return err
 	}
