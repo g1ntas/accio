@@ -1,7 +1,6 @@
 package generator
 
 import (
-	"github.com/BurntSushi/toml"
 	"os"
 	"path"
 	"path/filepath"
@@ -89,15 +88,6 @@ func (g *Generator) wrapErr(operation string, err error) error {
 	}
 	return &GeneratorError{operation, g.Name, g.Dest, err}
 
-}
-
-func (g *Generator) readConfig(b []byte) error {
-	err := toml.Unmarshal(b, &g)
-	if err != nil {
-		return err
-	}
-	// todo: validate parsed data
-	return nil
 }
 
 func (g *Generator) manifestPath() string {

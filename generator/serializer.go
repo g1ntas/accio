@@ -6,13 +6,13 @@ import (
 )
 
 func init() {
-	// register prompt interface types
-	gob.Register(&Input{})
-	gob.Register(&Integer{})
-	gob.Register(&Confirm{})
-	gob.Register(&List{})
-	gob.Register(&Choice{})
-	gob.Register(&MultiChoice{})
+	// register Prompt interface types
+	gob.Register(&input{})
+	gob.Register(&integer{})
+	gob.Register(&confirm{})
+	gob.Register(&list{})
+	gob.Register(&choice{})
+	gob.Register(&multiChoice{})
 }
 
 func Deserialize(r io.Reader) (*Registry, error) {

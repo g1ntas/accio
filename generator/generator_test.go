@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// file info mock implementation
+// fileMock represents structure of fake file for filesystem mock implementation
 type fileMock struct {
 	path    string
 	mode    os.FileMode
@@ -41,9 +41,10 @@ func dir(dirname string) *fileMock {
 	return &fileMock{filepath.FromSlash(dirname), os.ModeDir, ""}
 }
 
-// tree is meant to simulate files structure within filesystem
+// tree represents flat directory tree structure within filesystem
 type tree []*fileMock
 
+// get returns file by path match, or nil if there's none
 func (t tree) get(path string) *fileMock {
 	for _, f := range t {
 		if f.path == path {
@@ -53,14 +54,15 @@ func (t tree) get(path string) *fileMock {
 	return nil
 }
 
-// filesystem mock implementation
+// fsMock represents filesystem implementation
 type fsMock struct {
-	files  tree
-	output tree
+	files  tree // all existing files within FS
+	output tree // all newly created files during test
 }
 
 var _ Filesystem = (*fsMock)(nil)
 
+// ReadFile returns matched file's content
 func (fs *fsMock) ReadFile(filename string) ([]byte, error) {
 	if f := fs.files.get(filename); f != nil {
 		return []byte(f.content), nil
@@ -68,6 +70,7 @@ func (fs *fsMock) ReadFile(filename string) ([]byte, error) {
 	return []byte{}, os.ErrNotExist
 }
 
+// WriteFile adds file to fake FS tree and output tree
 func (fs *fsMock) WriteFile(name string, data []byte, _ os.FileMode) error {
 	f := file(name, string(data))
 	fs.output = append(fs.output, f)
@@ -75,18 +78,22 @@ func (fs *fsMock) WriteFile(name string, data []byte, _ os.FileMode) error {
 	return nil
 }
 
+// Walk simulates walking over given root directory's structure
 func (fs *fsMock) Walk(root string, walkFn filepath.WalkFunc) error {
 	for _, f := range fs.files {
+		// ignore file if it's not within given root path
 		if len(f.path) < len(root) || f.path[:len(root)] != root {
 			continue
 		}
-		if err := walkFn(f.path, f, nil); err != nil && err != filepath.SkipDir {
+		err := walkFn(f.path, f, nil);
+		if err != nil && err != filepath.SkipDir {
 			return err
 		}
 	}
 	return nil
 }
 
+// Stat returns fileMock from fake FS tree
 func (fs *fsMock) Stat(name string) (os.FileInfo, error) {
 	if f := fs.files.get(name); f != nil {
 		return f, nil
@@ -94,11 +101,12 @@ func (fs *fsMock) Stat(name string) (os.FileInfo, error) {
 	return nil, os.ErrNotExist
 }
 
-// template engine mock implementation
+// tplEngineMock represents TemplateEngine implementation
 type tplEngineMock struct{}
 
 var _ TemplateEngine = (*tplEngineMock)(nil)
 
+// Parse decodes json into Template
 func (e *tplEngineMock) Parse(b []byte, _ map[string]interface{}) (*Template, error) {
 	tpl := &Template{}
 	err := json.Unmarshal(b, tpl)
@@ -108,6 +116,7 @@ func (e *tplEngineMock) Parse(b []byte, _ map[string]interface{}) (*Template, er
 	return tpl, nil
 }
 
+// equalTress compares two slices containing file mocks
 func equalTrees(t1, t2 tree) bool {
 	if len(t1) != len(t2) {
 		return false
@@ -129,86 +138,91 @@ func equalTrees(t1, t2 tree) bool {
 	return true
 }
 
+const (
+	skipExisting      = true
+	overwriteExisting = false
+)
+
 var runnerTests = []struct {
 	name         string
 	input        tree
 	output       tree
 	skipExisting bool
 }{
-	{"no files", tree{}, tree{}, true},
-	{"ignore directories", tree{dir("a")}, tree{}, true},
-	{"ignore symbolic links", tree{symlink("a")}, tree{}, true},
+	{"no files", tree{}, tree{}, skipExisting},
+	{"ignore directories", tree{dir("a")}, tree{}, skipExisting},
+	{"ignore symbolic links", tree{symlink("a")}, tree{}, skipExisting},
 	{
 		"ignore manifest",
 		tree{file("generator/.accio.toml", "")},
 		tree{},
-		true,
+		skipExisting,
 	},
 	{
 		"write static file",
 		tree{file("generator/a.txt", "test")},
 		tree{file("output/a.txt", "test")},
-		true,
+		skipExisting,
 	},
 	{
 		"write multiple files",
 		tree{file("generator/a.txt", "file1"), file("generator/b.txt", "file2")},
 		tree{file("output/a.txt", "file1"), file("output/b.txt", "file2")},
-		true,
+		skipExisting,
 	},
 	{
 		"write nested files",
 		tree{dir("generator/abc"), file("generator/abc/test.txt", "file")},
 		tree{file("output/abc/test.txt", "file")},
-		true,
+		skipExisting,
 	},
 	{
 		"write template file",
-		tree{file("generator/bla.txt", `{"body": "test"}`)},
+		tree{file("generator/test.txt.accio", `{"body": "test"}`)},
 		tree{file("output/test.txt", "test")},
-		true,
+		skipExisting,
 	},
 	{
 		"template | skip file",
-		tree{file("generator/bla.txt", `{"skip": true}`)},
+		tree{file("generator/test.txt.accio", `{"skip": true}`)},
 		tree{},
-		true,
+		skipExisting,
 	},
 	{
 		"template | custom filename",
-		tree{file("generator/bla.txt", `{"filename": "custom.txt", "body": "---"}`)},
+		tree{file("generator/test.txt.accio", `{"filename": "custom.txt", "body": "---"}`)},
 		tree{file("output/custom.txt", "---")},
-		true,
+		skipExisting,
 	},
 	{
 		"template | nested custom filename",
-		tree{file("generator/bla.txt", `{"filename": "dir/custom.txt"}`)},
+		tree{file("generator/test.txt.accio", `{"filename": "dir/custom.txt"}`)},
 		tree{file("output/dir/custom.txt", "")},
-		true,
+		skipExisting,
 	},
 	{
 		"template | append static name if filename is directory",
-		tree{dir("output/abc"), file("generator/bla.txt", `{"filename": "abc"}`)},
+		tree{dir("output/abc"), file("generator/test.txt.accio", `{"filename": "abc"}`)},
 		tree{file("output/abc/test.txt", "")},
-		true,
+		skipExisting,
 	},
 	{
 		"template | don't write outside root",
-		tree{file("generator/bla.txt", `{"filename": "../../../custom.txt"}`)},
+		tree{file("generator/test.txt.accio", `{"filename": "../../../custom.txt"}`)},
 		tree{file("output/custom.txt", "")},
-		true,
+		skipExisting,
 	},
 	{
 		"overwrite if file exists",
 		tree{file("generator/test.txt", "new"), file("output/test.txt", "old")},
 		tree{file("output/test.txt", "new")},
-		false,
+		overwriteExisting,
 	},
 	{
 		"skip if file exists",
 		tree{file("generator/test.txt", "new"), file("output/test.txt", "old")},
 		tree{},
-		true,
+		skipExisting,
 	},
 }
 
@@ -229,13 +243,4 @@ func TestRunner(t *testing.T) {
 	}
 }
 
-var configTests = []struct {
-	name  string
-	input string
-	gen   *Generator
-	err   error
-}{
-	
-}
 // todo: test PromptAll if all prompts are called
-// todo: test config reading

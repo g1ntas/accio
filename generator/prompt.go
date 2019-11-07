@@ -2,7 +2,6 @@ package generator
 
 import (
 	"errors"
-	"fmt"
 	"strconv"
 )
 
@@ -26,43 +25,43 @@ var nilValidator = func(val string) error {
 	return nil
 }
 
-type prompt interface {
+type Prompt interface {
 	kind() string
 	Prompt(prompter Prompter) (interface{}, error)
 }
 
-type PromptMap map[string]prompt
+type PromptMap map[string]Prompt
 
-type Base struct {
-	Msg  string `toml:"message"`
-	Help string `toml:"help"`
+type base struct {
+	msg  string
+	help string
 }
 
-// Input
-type Input struct {
-	Base
+// input
+type input struct {
+	base
 }
 
-func (p *Input) kind() string {
+func (p *input) kind() string {
 	return promptInput
 }
 
-func (p *Input) Prompt(prompter Prompter) (interface{}, error) {
-	return prompter.Get(p.Msg, p.Help, nilValidator)
+func (p *input) Prompt(prompter Prompter) (interface{}, error) {
+	return prompter.Get(p.msg, p.help, nilValidator)
 }
 
 
-// Integer
-type Integer struct {
-	Base
+// integer
+type integer struct {
+	base
 }
 
-func (p *Integer) kind() string {
+func (p *integer) kind() string {
 	return promptInteger
 }
 
-func (p *Integer) Prompt(prompter Prompter) (interface{}, error) {
-	val, err := prompter.Get(p.Msg, p.Help, func(val string) error {
+func (p *integer) Prompt(prompter Prompter) (interface{}, error) {
+	val, err := prompter.Get(p.msg, p.help, func(val string) error {
 		for i, r := range val {
 			if r < '0' || r > '9' || (r == '-' && i != 0) {
 				return errors.New("value is not an integer")
@@ -77,94 +76,61 @@ func (p *Integer) Prompt(prompter Prompter) (interface{}, error) {
 }
 
 
-// Confirm
-type Confirm struct {
-	Base
+// confirm
+type confirm struct {
+	base
 }
 
-func (p *Confirm) kind() string {
+func (p *confirm) kind() string {
 	return promptConfirm
 }
 
-func (p *Confirm) Prompt(prompter Prompter) (interface{}, error) {
-	return prompter.Confirm(p.Msg, p.Help)
+func (p *confirm) Prompt(prompter Prompter) (interface{}, error) {
+	return prompter.Confirm(p.msg, p.help)
 }
 
 
-// List
-type List struct {
-	Base
+// list
+type list struct {
+	base
 }
 
-func (p *List) kind() string {
+func (p *list) kind() string {
 	return promptList
 }
 
-func (p *List) Prompt(prompter Prompter) (interface{}, error) {
-	val, err := prompter.Get(p.Msg, p.Help, nilValidator)
+func (p *list) Prompt(prompter Prompter) (interface{}, error) {
+	val, err := prompter.Get(p.msg, p.help, nilValidator)
 	// todo: split string by comma
 	return val, err
 }
 
 
-// Choice
-type Choice struct {
-	Base
-	Options []string `toml:"options"`
+// choice
+type choice struct {
+	base
+	options []string
 }
 
-func (p *Choice) kind() string {
+func (p *choice) kind() string {
 	return promptChoice
 }
 
-func (p *Choice) Prompt(prompter Prompter) (interface{}, error) {
-	return prompter.SelectOne(p.Msg, p.Help, p.Options)
+func (p *choice) Prompt(prompter Prompter) (interface{}, error) {
+	return prompter.SelectOne(p.msg, p.help, p.options)
 }
 
 
-// MultiChoice
-type MultiChoice struct {
-	Base
-	Options []string `toml:"options"`
+// multiChoice
+type multiChoice struct {
+	base
+	options []string
 }
 
-func (p *MultiChoice) kind() string {
+func (p *multiChoice) kind() string {
 	return promptMultiChoice
 }
 
-func (p *MultiChoice) Prompt(prompter Prompter) (interface{}, error) {
-	return prompter.SelectMultiple(p.Msg, p.Help, p.Options)
-}
-
-func (m PromptMap) UnmarshalTOML(data interface{}) error {
-	prompts := data.(map[string]interface{})
-	for key, def := range prompts {
-		mapping := def.(map[string]interface{})
-		typ, ok := mapping["type"].(string)
-		if !ok {
-			return fmt.Errorf("prompt %q has no type", key)
-		}
-		base := Base{}
-		base.Msg, _ = mapping["message"].(string)
-		base.Help, _ = mapping["help"].(string)
-		switch typ {
-		case promptInput:
-			m[key] = &Input{base}
-		case promptInteger:
-			m[key] = &Integer{base}
-		case promptConfirm:
-			m[key] = &Confirm{base}
-		case promptList:
-			m[key] = &List{base}
-		case promptChoice:
-			options, _ := mapping["options"].([]string)
-			m[key] = &Choice{base, options}
-		case promptMultiChoice:
-			options, _ := mapping["options"].([]string)
-			m[key] = &MultiChoice{base, options}
-		default:
-			return fmt.Errorf("prompt %q with unknown type %q", key, typ)
-		}
-	}
-	return nil
+func (p *multiChoice) Prompt(prompter Prompter) (interface{}, error) {
+	return prompter.SelectMultiple(p.msg, p.help, p.options)
 }
