@@ -89,7 +89,7 @@ func (g *Generator) string() string {
 	prompts := make([]string, len(g.Prompts))
 	i := 0
 	for k, p := range g.Prompts {
-		prompts[i] = k+":"+p.kind()
+		prompts[i] = k + ":" + p.kind()
 		i++
 	}
 	return fmt.Sprintf("%q %q %q %v", g.Name, desc, help, prompts)
@@ -112,112 +112,99 @@ var configTests = []struct {
 	{"empty name", conf{"name": ""}, emptyGen, hasError},
 
 	// description
-	{"valid description", conf{"description": "abc"}, Generator{Description: "abc"}, noError},
-	{"empty description", conf{"description": ""}, emptyGen, hasError},
-	{"description longer than 128 characters", conf{"description": strOfLen(129)}, emptyGen, hasError},
+	{"valid description", conf{"name": "a", "description": "abc"}, Generator{Name: "a", Description: "abc"}, noError},
+	{"description longer than 128 characters", conf{"name": "a", "description": strOfLen(129)}, emptyGen, hasError},
 
 	// help
-	{"help", conf{"help": "abc"}, Generator{Help: "abc"}, noError},
+	{"help", conf{"name": "a", "help": "abc"}, Generator{Name: "a", Help: "abc"}, noError},
 
 	// prompts
 	{
 		"Prompt empty type",
-		conf{"prompts": conf{"var": conf{"type": "", "message": "test"}}},
-		Generator{},
+		conf{"name": "a", "prompts": conf{"var": conf{"type": "", "message": "test"}}},
+		emptyGen,
 		hasError,
 	},
 	{
 		"Prompt invalid type",
-		conf{"prompts": conf{"var": conf{"type": "invalid", "message": "test"}}},
-		Generator{},
+		conf{"name": "a", "prompts": conf{"var": conf{"type": "invalid", "message": "test"}}},
+		emptyGen,
 		hasError,
 	},
 	{
 		"Prompt empty message",
-		conf{"prompts": conf{"var": conf{"type": "input", "message": ""}}},
-		Generator{},
+		conf{"name": "a", "prompts": conf{"var": conf{"type": "input", "message": ""}}},
+		emptyGen,
 		hasError,
 	},
 	{
 		"Prompt message longer than 128 characters",
-		conf{"prompts": conf{"var": conf{"type": "input", "message": strOfLen(125)}}},
-		Generator{},
+		conf{"name": "a", "prompts": conf{"var": conf{"type": "input", "message": strOfLen(129)}}},
+		emptyGen,
 		hasError,
 	},
 	{
 		"Prompt var name longer than 64 characters",
-		conf{"prompts": conf{strOfLen(65): conf{"type": "input", "message": "test"}}},
-		Generator{},
+		conf{"name": "a", "prompts": conf{strOfLen(65): conf{"type": "input", "message": "test"}}},
+		emptyGen,
 		hasError,
 	},
 	{
 		"Prompt with valid var name",
-		conf{"prompts": conf{"_Var_1": conf{"type": "input", "message": "test"}}},
-		Generator{Prompts: PromptMap{"_Var_1": &input{base{msg: "test"}}}},
+		conf{"name": "a", "prompts": conf{"_Var_1": conf{"type": "input", "message": "test"}}},
+		Generator{Name: "a", Prompts: PromptMap{"_Var_1": &input{base{msg: "test"}}}},
 		noError,
 	},
 	{
-		"Prompt with var name containing hyphen",
-		conf{"prompts": conf{"test-var": conf{"type": "input", "message": "test"}}},
-		Generator{},
-		hasError,
-	},
-	{
 		"Prompt with var name starting with digit",
-		conf{"prompts": conf{"0var": conf{"type": "input", "message": "test"}}},
-		Generator{},
+		conf{"name": "a", "prompts": conf{"0var": conf{"type": "input", "message": "test"}}},
+		emptyGen,
 		hasError,
 	},
 	{
-		"Prompt with var name containing non-ascii characters",
-		conf{"prompts": conf{"vaƒr": conf{"type": "input", "message": "test"}}},
-		Generator{},
+		"Prompt with var name containing invalid characters",
+		conf{"name": "a", "prompts": conf{"test-var": conf{"type": "input", "message": "test"}}},
+		emptyGen,
 		hasError,
 	},
 	{
 		"Prompt type input",
-		conf{"prompts": conf{"var": conf{"type": "input", "message": "test"}}},
-		Generator{Prompts: PromptMap{"var": &input{base{msg: "test"}}}},
+		conf{"name": "a", "prompts": conf{"var": conf{"type": "input", "message": "test"}}},
+		Generator{Name: "a", Prompts: PromptMap{"var": &input{base{msg: "test"}}}},
 		noError,
 	},
 	{
 		"Prompt help",
-		conf{"prompts": conf{"var": conf{"type": "input", "message": "test", "help": "abc"}}},
-		Generator{Prompts: PromptMap{"var": &input{base{msg: "test", help: "abc"}}}},
+		conf{"name": "a", "prompts": conf{"var": conf{"type": "input", "message": "test", "help": "abc"}}},
+		Generator{Name: "a", Prompts: PromptMap{"var": &input{base{msg: "test", help: "abc"}}}},
 		noError,
 	},
 	{
-		"Prompt help longer than 512 characters",
-		conf{"prompts": conf{"var": conf{"type": "input", "message": "test", "help": strOfLen(513)}}},
-		Generator{},
-		hasError,
-	},
-	{
 		"Prompt type integer",
-		conf{"prompts": conf{"var": conf{"type": "input", "message": "test"}}},
-		Generator{Prompts: PromptMap{"var": &integer{base{msg: "test"}}}},
+		conf{"name": "a", "prompts": conf{"var": conf{"type": "input", "message": "test"}}},
+		Generator{Name: "a", Prompts: PromptMap{"var": &integer{base{msg: "test"}}}},
 		noError,
 	},
 	{
 		"Prompt type confirm",
-		conf{"prompts": conf{"var": conf{"type": "input", "message": "test"}}},
-		Generator{Prompts: PromptMap{"var": &confirm{base{msg: "test"}}}},
+		conf{"name": "a", "prompts": conf{"var": conf{"type": "input", "message": "test"}}},
+		Generator{Name: "a", Prompts: PromptMap{"var": &confirm{base{msg: "test"}}}},
 		noError,
 	},
 	{
 		"Prompt type list",
-		conf{"prompts": conf{"var": conf{"type": "list", "message": "test"}}},
-		Generator{Prompts: PromptMap{"var": &confirm{base{msg: "test"}}}},
+		conf{"name": "a", "prompts": conf{"var": conf{"type": "list", "message": "test"}}},
+		Generator{Name: "a", Prompts: PromptMap{"var": &confirm{base{msg: "test"}}}},
 		noError,
 	},
 	{
 		"Prompt type choice",
-		conf{"prompts": conf{"var": conf{
-			"type": "choice",
+		conf{"name": "a", "prompts": conf{"var": conf{
+			"type":    "choice",
 			"options": []string{"a", "b"},
 			"message": "test",
 		}}},
-		Generator{Prompts: PromptMap{"var":
+		Generator{Name: "a", Prompts: PromptMap{"var":
 		&choice{
 			base{msg: "test"},
 			[]string{"a", "b"},
@@ -226,19 +213,37 @@ var configTests = []struct {
 		noError,
 	},
 	{
+		"Prompt 'choice' without options",
+		conf{"name": "a", "prompts": conf{"var": conf{
+			"type":    "choice",
+			"message": "test",
+		}}},
+		emptyGen,
+		hasError,
+	},
+	{
 		"Prompt type multi choice",
-		conf{"prompts": conf{"var": conf{
-			"type": "multi-choice",
+		conf{"name": "a", "prompts": conf{"var": conf{
+			"type":    "multi-choice",
 			"options": []string{"a", "b"},
 			"message": "test",
 		}}},
-		Generator{Prompts: PromptMap{"var":
+		Generator{Name: "a", Prompts: PromptMap{"var":
 		&multiChoice{
 			base{msg: "test"},
 			[]string{"a", "b"},
 		},
 		}},
 		noError,
+	},
+	{
+		"Prompt 'multi-choice' without options",
+		conf{"name": "a", "prompts": conf{"var": conf{
+			"type":    "multi-choice",
+			"message": "test",
+		}}},
+		emptyGen,
+		hasError,
 	},
 }
 

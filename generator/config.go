@@ -1,8 +1,10 @@
 package generator
 
 import (
+	"errors"
 	"fmt"
 	"github.com/BurntSushi/toml"
+	"unicode"
 )
 
 func (g *Generator) readConfig(b []byte) error {
@@ -19,13 +21,19 @@ func (g *Generator) readConfig(b []byte) error {
 func (m PromptMap) UnmarshalTOML(data interface{}) error {
 	prompts := data.(map[string]interface{})
 	for key, def := range prompts {
+		if err := validatePromptKey(key); err != nil {
+			return err
+		}
 		mapping := def.(map[string]interface{})
 		typ, ok := mapping["type"].(string)
 		if !ok {
-			return fmt.Errorf("prompt %q has no type", key)
+			return fmt.Errorf("missing type for prompt %q", key)
 		}
 		base := base{}
-		base.msg, _ = mapping["message"].(string)
+		var err error
+		if base.msg, err = parsePromptMessage(mapping, key); err != nil {
+			return err
+		}
 		base.help, _ = mapping["help"].(string)
 		switch typ {
 		case promptInput:
@@ -36,28 +44,110 @@ func (m PromptMap) UnmarshalTOML(data interface{}) error {
 			m[key] = &confirm{base}
 		case promptList:
 			m[key] = &list{base}
-		case promptChoice:
-			m[key] = &choice{base, parseOptions(mapping)}
-		case promptMultiChoice:
-			m[key] = &multiChoice{base, parseOptions(mapping)}
+		case promptChoice, promptMultiChoice:
+			opts, err := parsePromptOptions(mapping, key)
+			if err != nil {
+				return err
+			}
+			if typ == promptChoice {
+				m[key] = &choice{base, opts}
+			} else {
+				m[key] = &multiChoice{base, opts}
+			}
 		default:
-			return fmt.Errorf("prompt %q with unknown type %q", key, typ)
+			return fmt.Errorf("unknown type %q in prompt %q", typ, key)
 		}
 	}
 	return nil
 }
 
-// parseOptions returns Prompt options parsed from given toml mapping
-func parseOptions(tree map[string]interface{}) (options []string) {
-	if opts, ok := tree["options"].([]interface{}); ok {
-		options = make([]string, len(opts))
-		for i, v := range opts {
-			options[i] = v.(string)
-		}
+func parsePromptOptions(conf map[string]interface{}, key string) (options []string, err error) {
+	opts, ok := conf["options"].([]interface{})
+	if !ok || len(opts) == 0 {
+		return []string{}, fmt.Errorf("no options were specified for prompt %q", key)
+	}
+	options = make([]string, len(opts))
+	for i, v := range opts {
+		options[i] = v.(string)
 	}
 	return
 }
 
-func (g *Generator) validate() error {
+func validatePromptKey(k string) error {
+	if len(k) > 64 {
+		return fmt.Errorf("prompt key %q is too long, it must be not longer than 64 characters", k)
+	}
+	if isDigit(rune(k[0])) {
+		return fmt.Errorf("prompt key %q should start with a letter or underscore, but got digit instead", k)
+	}
+	for _, r := range k {
+		if !isLetter(r) && !isDigit(r) && r != '_' {
+			return fmt.Errorf("prompt key %q contains invalid character %q", k, r)
+		}
+	}
 	return nil
+}
+
+func parsePromptMessage(conf map[string]interface{}, key string) (string, error) {
+	s, _ := conf["message"].(string)
+	if len(s) == 0 {
+		return "", fmt.Errorf("required setting 'message' is missing for prompt %q", key)
+	}
+	if len(s) > 128 {
+		return "", fmt.Errorf("prompt message for %q is too long, it must be not longer than 128 characters", key)
+	}
+	return s, nil
+}
+
+func (g *Generator) validate() error {
+	if err := validateName(g.Name); err != nil {
+		return err
+	}
+	if err := validateDescription(g.Description); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateName(s string) error {
+	if len(s) == 0 {
+		return errors.New("required setting 'name' is missing")
+	}
+	if len(s) > 64 {
+		return errors.New("name can not be longer than 64 characters")
+	}
+	if startsOrEndsWithRune(s, '-') {
+		return errors.New("name can not start or end with '-' character")
+	}
+	if startsOrEndsWithRune(s, ':') {
+		return errors.New("name can not start or end with ':' character")
+	}
+	for _, r := range s {
+		if !isLetter(r) && !isDigit(r) && r != '-' && r != ':' {
+			return fmt.Errorf("name contains invalid character %q", r)
+		}
+	}
+	return nil
+}
+
+func validateDescription(s string) error {
+	if len(s) > 128 {
+		return errors.New("description can not be longer than 64 characters")
+	}
+	return nil
+}
+
+// startsOrEndsWithRune checks whether string starts or ends with a given rune.
+func startsOrEndsWithRune(s string, r rune) bool {
+	return s[0:1] == string(r) || s[len(s)-1:] == string(r)
+}
+
+// isLetter checks whether r is an ASCII valid letter ([a-zA-Z]).
+func isLetter(r rune) bool {
+	return r <= unicode.MaxASCII && unicode.IsLetter(r)
+}
+
+// isDigit checks whether r is an ASCII valid numeric digit ([0-9]).
+func isDigit(r rune) bool {
+	return r <= unicode.MaxASCII && unicode.IsDigit(r)
 }
