@@ -66,7 +66,6 @@ type lexStateFn func(*lexer) lexStateFn
 
 // lexer holds the state of the scanner.
 type lexer struct {
-	name       string     // the full-name of the input; used only for errors
 	input      string     // the string being scanned
 	pos        Pos        // current position in the input
 	start      Pos        // start position of current token
@@ -161,7 +160,7 @@ func (lx *lexer) atString(s string) bool {
 }
 
 // lex returns a new instance of lexer.
-func lex(name, input, left, right string) *lexer {
+func lex(input, left, right string) *lexer {
 	if left == "" {
 		left = leftDelimiter
 	}
@@ -169,7 +168,6 @@ func lex(name, input, left, right string) *lexer {
 		right = rightDelimiter
 	}
 	lx := &lexer{
-		name:       name,
 		input:      input,
 		leftDelim:  left,
 		rightDelim: right,

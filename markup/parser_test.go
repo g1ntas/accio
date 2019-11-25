@@ -176,7 +176,7 @@ func (n *TagNode) String() string {
 
 func TestParse(t *testing.T) {
 	for _, test := range parseTests {
-		parser, err := Parse("test.go", test.input, "", "")
+		parser, err := Parse(test.input, "", "")
 		switch {
 		case err == nil && !test.ok:
 			t.Errorf("%q: expected error; got none", test.name)

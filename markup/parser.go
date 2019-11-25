@@ -55,9 +55,8 @@ type parseStateFn func(*Parser) parseStateFn
 
 // parse returns a parse.Parser of the template. If an error is encountered,
 // parsing stops and an empty map is returned with error.
-func Parse(name, text, leftDelim, rightDelim string) (p *Parser, err error) {
-	p = &Parser{Name: name}
-	p.text = text
+func Parse(text, leftDelim, rightDelim string) (p *Parser, err error) {
+	p = &Parser{}
 	_, err = p.parse(text, leftDelim, rightDelim)
 	return
 }
@@ -88,7 +87,7 @@ func (p *Parser) stop() {
 func (p *Parser) parse(text, leftDelim, rightDelim string) (tree *Parser, err error) {
 	defer p.recover(&err)
 	p.Tags = []*TagNode{}
-	p.lex = lex(p.Name, text, leftDelim, rightDelim) // start parsing
+	p.lex = lex(text, leftDelim, rightDelim) // start parsing
 	p.text = text
 	for state := parseTemplate; state != nil; {
 		state = state(p)
@@ -249,7 +248,7 @@ func (p *Parser) next() token {
 
 // errorf formats the error and terminates processing.
 func (p *Parser) errorf(format string, args ...interface{}) parseStateFn {
-	format = fmt.Sprintf("template at %s:%d: %s", p.Name, p.token.line, format)
+	format = fmt.Sprintf("%s at line %d", format, p.token.line)
 	panic(fmt.Errorf(format, args...))
 	return nil
 }
@@ -261,14 +260,14 @@ func (p *Parser) error(err error) parseStateFn {
 
 // error terminates processing with error.
 func (p *Parser) unexpected() parseStateFn {
-	return p.errorf("unexpected %s in %s", p.token, p.Name)
+	return p.errorf("unexpected %s", p.token)
 }
 
 // unquoteString removes double quote characters surrounding the string.
 func unquoteString(s string) (string, error) {
 	l := len(s)
 	if s[0:1] != "\"" || s[l-1:] != "\"" {
-		return "", fmt.Errorf("value is expected to be surrounded with \" quotes")
+		return "", fmt.Errorf("value is expected to be surrounded with quotes")
 	}
 	return s[1:l-1], nil
 }

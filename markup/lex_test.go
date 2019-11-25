@@ -338,7 +338,7 @@ var lexTests = []lexTest{
 
 // collect gathers the emitted tokens into a slice
 func collect(t *lexTest, left, right string) (tokens []token) {
-	lx := lex(t.name, t.input, left, right)
+	lx := lex(t.input, left, right)
 	for {
 		token := lx.nextToken()
 		tokens = append(tokens, token)
