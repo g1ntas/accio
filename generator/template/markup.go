@@ -1,107 +1,108 @@
 package template
 
-/*
 import (
 	"errors"
-	"fmt"
 	"github.com/g1ntas/accio/markup"
-	"fs/ioutil"
+	"log"
 )
 
+const (
+	tagFilename = "filename"
+	tagSkip     = "skipif"
+	tagTemplate = "template"
+	tagPartial  = "partial"
+	tagVariable = "variable"
+	attrName    = "name"
+)
+
+var errSkipTag = errors.New("skip tag")
+
 type Markup struct {
-	Filename *script
-	Skip *script
-	Body template
-	Vars map[string]*Var
-	Partials map[string]*Partial
-
+	Filename string
+	Skip     string
+	Body     string
+	Vars     map[string]string
+	Partials map[string]string
 }
 
-type Var struct {
-	Name string
-	Value *script
-}
-
-type Partial struct {
-	Name string
-	Body string
-}
-
-func ParseFile(path string) error {
-	b, err := ioutil.ReadFile(path)
-	if err != nil {
-		return err
+func newMarkup() *Markup {
+	return &Markup{
+		Vars: make(map[string]string),
+		Partials: make(map[string]string),
 	}
-	p, err := markup.Parse(path, string(b), "", "")
-	if err != nil {
-		return err
-	}
-	parse(p)
 }
 
-func parseBody(tag *markup.TagNode) (*Var, error) {
-
+func (m *Markup) setPartial(name, val string) {
+	if _, ok := m.Partials[name]; ok {
+		log.Printf("Partial definition for %q already exists. Overwriting...", name)
+	}
+	m.Partials[name] = val
 }
 
-func parsePartial(tag *markup.TagNode) (*Partial, error) {
-
+func (m *Markup) setVar(name, val string) {
+	if _, ok := m.Vars[name]; ok {
+		log.Printf("Variable definition for %q already exists. Overwriting...", name)
+	}
+	m.Vars[name] = val
 }
 
-func parseVariable(tag *markup.TagNode) (*Var, error) {
-	v := &Var{}
-	for _, attr := range tag.Attributes {
-		switch attr.Name {
-		case "name":
-			v.Name = attr.Value
-		default:
-			return nil, fmt.Errorf("unknown attribute %q of variable tag", attr.Name)
-		}
-	}
-	if len(v.Name) == 0 {
-		return nil, errors.New("missing \"name\" attribute for variable tag")
-	}
-	if tag.Body == nil {
-		return nil, errors.New("missing body for variable tag")
-	}
-	// todo: compile starlark
-	v.Value = tag.Body.Content
-	return v, nil
-}
-
-/*func parseFilename(tag *markup.TagNode) (string, error) {
-	if tag.Body == nil {
-		return "", errors.New("missing body for filename markup")
-	}
-	return tag.Body.Content, nil
-}*/
-/*
-func parse(p *markup.Parser) (*Markup, error) {
-	mrkp := &Markup{}
+func parse(p *markup.Parser) *Markup {
+	m := newMarkup()
 	for _, tag := range p.Tags {
-		var err error
 		switch tag.Name {
-		// accio specific
-		case "filename":
-			mrkp.Filename, err = parseFilename(tag)
-		case "skipif":
-		// generic
-		case "variable":
-			v, err := parseVariable(tag)
-			if err != nil {
-				return nil, err
+		case tagFilename:
+			m.Filename = parseScriptBody(tag)
+		case tagSkip:
+			m.Skip = parseScriptBody(tag)
+		case tagTemplate:
+			m.Body = parseBody(tag)
+		case tagPartial, tagVariable:
+			name, err := parseTagNameAttr(tag)
+			if err == errSkipTag {
+				continue
 			}
-			if _, ok := mrkp.Vars[v.Name]; ok {
-				return nil, fmt.Errorf("definition of variable %q already exists within this template", v.Name)
+			if tag.Body == nil {
+				log.Printf("Tag %q with name %q is missing body. Skipping...\n", tag.Name, name)
+				continue
 			}
-		case "template":
-
-		case "partial":
-		default:
-		}
-		if err != nil {
-			return nil, err
+			switch tag.Name {
+			case tagPartial:
+				m.setPartial(name, parseBody(tag))
+			case tagVariable:
+				m.setVar(name, parseScriptBody(tag))
+			}
 		}
 	}
-	return mrkp, nil
+	return m
 }
-*/
+
+func parseTagNameAttr(tag *markup.TagNode) (string, error) {
+	var name string
+	for _, attr := range tag.Attributes {
+		if attr.Name == attrName {
+			name = attr.Value
+		}
+	}
+	if len(name) == 0 {
+		log.Printf("Tag %q is missing %q attribute. Skipping...", tag.Name, attrName)
+		return "", errSkipTag
+	}
+	return name, nil
+}
+
+func parseBody(tag *markup.TagNode) string {
+	if tag.Body == nil {
+		return ""
+	}
+	return tag.Body.Content
+}
+
+func parseScriptBody(tag *markup.TagNode) string {
+	if tag.Body == nil {
+		return ""
+	}
+	if tag.Body.Inline {
+		return wrapInlineScript(tag.Body.Content)
+	}
+	return tag.Body.Content
+}

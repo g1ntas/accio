@@ -145,8 +145,8 @@ const (
 
 var runnerTests = []struct {
 	name         string
-	input        tree
-	output       tree
+	input        tree // initial FS structure
+	output       tree // new files that were created during the test
 	skipExisting bool
 }{
 	{"no files", tree{}, tree{}, skipExisting},

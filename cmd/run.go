@@ -25,7 +25,7 @@ var runCmd = &cobra.Command{
 		}
 		filesystem := fs.NewNativeFS()
 		promp := prompter.NewCLIPrompter()
-		tpl := &template.Engine{}
+		tpl := &template.Parser{}
 
 		generators := registry.FindGenerators(args[0])
 		if len(generators) == 0 {
