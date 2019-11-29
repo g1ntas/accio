@@ -8,6 +8,8 @@ import (
 
 // todo: rename to parser
 type Parser struct {
+	// Shared data to be used in scripts and templates.
+	// It's not thread-safe, thus should not be modified blindly.
 	data   map[string]interface{}
 	markup *Markup
 	tpl    generator.Template
@@ -24,7 +26,6 @@ func (p *Parser) Parse(b []byte) (*generator.Template, error) {
 	}
 	p.markup = parse(mp)
 
-	// todo: compile scripts
 	data := p.copyData()
 	for k, val := range p.markup.Vars {
 		s, err := execute(val, p.data)
@@ -33,7 +34,6 @@ func (p *Parser) Parse(b []byte) (*generator.Template, error) {
 		}
 		data[k] = s
 	}
-	// todo: merge variables with data
 	// todo: render templates and partials
 	err = p.renderTemplate(data)
 	return &p.tpl, nil
@@ -49,6 +49,7 @@ func (p *Parser) renderTemplate(data map[string]interface{}) error {
 	return nil
 }
 
+// copyData makes a copy of data variables, so it can be securely changed without side effects
 func (p *Parser) copyData() map[string]interface{} {
 	d := make(map[string]interface{})
 	for k, v := range p.data {

@@ -135,7 +135,10 @@ func parseDictKey(v starlark.Value) (string, error) {
 			if err != nil {
 				return "", err
 			}
-			key = key + " " + s
+			if i != 0 {
+				key += " "
+			}
+			key += s
 		}
 		return key, nil
 	}

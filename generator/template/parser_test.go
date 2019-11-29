@@ -12,11 +12,11 @@ import (
 type model = generator.Template
 type data = map[string]interface{}
 
+const newline = "\n"
+
 func stringify(m *model) string {
 	return fmt.Sprintf("{%q %q %v}", m.Filename, m.Body, m.Skip)
 }
-
-const newline = "\n"
 
 var parseTests = []struct {
 	name  string
@@ -148,36 +148,56 @@ var parseTests = []struct {
 	{
 		"interpret list from script in template",
 		`` +
-			`variable -name="var" << [1, "2", 3.1, True] >>` + newline +
+			`variable -name="var" << [1, "2", 3.1, True, None, ["a","b"]] >>` + newline +
 			`template <<{{var}}>>`,
 		data{},
-		&model{Body: "[1 2 3.1 true]"},
+		&model{Body: "[1 2 3.1 true  [a b]]"},
 	},
 	{
 		"interpret tuple from script in template",
 		`` +
-			`variable -name="var" << (1, "2", 3.1, True) >>` + newline +
+			`variable -name="var" << (1, "2", 3.1, True, None, (1, 2)) >>` + newline +
 			`template <<{{var}}>>`,
 		data{},
-		&model{Body: "[1 2 3.1 true]"},
+		&model{Body: "[1 2 3.1 true  [1 2]]"},
 	},
 	{
-		"interpret int indexed dict from script in template",
+		"interpret dict from script in template",
 		`` +
-			`variable -name="var" << {1: 1, 2: "2", 3: 3.1, 4: True} >>` + newline +
+			`variable -name="var" << {1: 1, 1.1: None, "a": "2", True: 3.1, None: True} >>` + newline +
 			`template <<{{var}}>>`,
 		data{},
-		&model{Body: "map[1:1 2:2 3:3.1 4:true]"},
+		&model{Body: "map[1:1 1.1: None:true True:3.1 a:2]"},
 	},
 	{
-		"interpret string indexed dict from script in template",
+		"interpret tuple indexed dict from script in template",
 		`` +
-			`variable -name="var" << {"a": 1, "b": "2", "c": 3.1, "d": True} >>` + newline +
+			`variable -name="var" << {("a",1,2.2,True,False,None,(1,2)): "test"} >>` + newline +
 			`template <<{{var}}>>`,
 		data{},
-		&model{Body: "map[a:1 b:2 c:3.1 d:true]"},
+		&model{Body: "map[a 1 2.2 True False None 1 2:test]"},
 	},
-	// todo: check if mustache correctly iterprets starlark types
+
+	// todo: test local int variable is correctly passed to other var
+	// todo: test local float variable is correctly passed to other var
+	// todo: test local bool variable is correctly passed to other var
+	// todo: test local null variable is correctly passed to other var
+	// todo: test local tuple variable is correctly passed to other var
+	// todo: test local list variable is correctly passed to other var
+	// todo: test local dict variable is correctly passed to other var
+
+	// todo: test filename tag works
+	// todo: test that filename script is executed
+	// todo: test filename can not return any other type than string
+	// todo: test that global variables can be used in filename tag
+	// todo: test that local variables can be used in filename tag
+
+	// todo: test skipif tag works
+	// todo: test that skipif script is executed
+	// todo: test skipif can not return any other type than boolean
+	// todo: test that global variables can be used in skipif tag
+	// todo: test that local variables can be used in skipif tag
+
 }
 
 func TestParsing(t *testing.T) {
