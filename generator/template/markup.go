@@ -28,36 +28,11 @@ type Markup struct {
 // vars holds variables in their original order
 type vars [][2]string
 
-func (v *vars) find(key string) int {
-	for i, val := range *v {
-		if val[0] == key {
-			return i
-		}
-	}
-	return -1
-}
-
 func newMarkup() *Markup {
 	return &Markup{
 		Vars:     make(vars, 0, 5),
 		Partials: make(map[string]string),
 	}
-}
-
-func (m *Markup) setPartial(name, val string) {
-	if _, ok := m.Partials[name]; ok {
-		log.Printf("Partial definition for %q already exists. Overwriting...", name)
-	}
-	m.Partials[name] = val
-}
-
-func (m *Markup) setVar(name, val string) {
-	if i := m.Vars.find(name); i != -1 {
-		log.Printf("Variable definition for %q already exists. Overwriting...", name)
-		m.Vars[i] = [2]string{name, val}
-		return
-	}
-	m.Vars = append(m.Vars, [2]string{name, val})
 }
 
 func parse(p *markup.Parser) *Markup {
@@ -81,9 +56,12 @@ func parse(p *markup.Parser) *Markup {
 			}
 			switch tag.Name {
 			case tagPartial:
-				m.setPartial(name, parseBody(tag))
+				if _, ok := m.Partials[name]; ok {
+					log.Printf("Partial definition for %q already exists. Overwriting...", name)
+				}
+				m.Partials[name] = parseBody(tag)
 			case tagVariable:
-				m.setVar(name, parseScriptBody(tag))
+				m.Vars = append(m.Vars, [2]string{name, parseScriptBody(tag)})
 			}
 		}
 	}

@@ -249,6 +249,16 @@ var parseTests = []struct {
 		data{},
 		&model{Body: "dict"},
 	},
+	{
+		"overwrite previous variable",
+		`` +
+			`variable -name="var" << "test" >>			` + newline +
+			`variable -name="var" << vars['var'] >>		` + newline +
+			`template <<{{var}}>>`,
+		data{},
+		&model{Body: "test"},
+	},
+
 	// todo: test filename tag works
 	// todo: test that filename script is executed
 	// todo: test filename can not return any other type than string
