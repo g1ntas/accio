@@ -82,31 +82,31 @@ var parseTests = []struct {
 
 	// verify data types are parsed correctly
 	{
-		"interpret predefined integer in template",
+		"render predefined integer in template",
 		`template <<{{var}}>>`,
 		data{"var": 1},
 		&model{Body: "1"},
 	},
 	{
-		"interpret predefined string in template",
+		"render predefined string in template",
 		`template <<{{var}}>>`,
 		data{"var": "test"},
 		&model{Body: "test"},
 	},
 	{
-		"interpret predefined bool in template",
+		"render predefined bool in template",
 		`template <<{{var}}>>`,
 		data{"var": true},
 		&model{Body: "true"},
 	},
 	{
-		"interpret predefined string list in template",
+		"render predefined string list in template",
 		`template <<{{#var}}{{.}}{{/var}}>>`,
 		data{"var": []string{"a", "b"}},
 		&model{Body: "ab"},
 	},
 	{
-		"interpret integer from script in template",
+		"render integer var in template",
 		`` +
 			`variable -name="var" << 1 >>` + newline +
 			`template <<{{var}}>>`,
@@ -114,7 +114,7 @@ var parseTests = []struct {
 		&model{Body: "1"},
 	},
 	{
-		"interpret string from script in template",
+		"render string var in template",
 		`` +
 			`variable -name="var" << "test" >>` + newline +
 			`template <<{{var}}>>`,
@@ -122,7 +122,7 @@ var parseTests = []struct {
 		&model{Body: "test"},
 	},
 	{
-		"interpret boolean from script in template",
+		"render boolean var in template",
 		`` +
 			`variable -name="var" << True >>` + newline +
 			`template <<{{var}}>>`,
@@ -130,7 +130,7 @@ var parseTests = []struct {
 		&model{Body: "true"},
 	},
 	{
-		"interpret float from script in template",
+		"render float var in template",
 		`` +
 			`variable -name="var" << 1.5 >>` + newline +
 			`template <<{{var}}>>`,
@@ -138,7 +138,7 @@ var parseTests = []struct {
 		&model{Body: "1.5"},
 	},
 	{
-		"interpret null from script in template",
+		"render null var in template",
 		`` +
 			`variable -name="var" << None >>` + newline +
 			`template <<{{var}}>>`,
@@ -146,7 +146,7 @@ var parseTests = []struct {
 		&model{Body: ""},
 	},
 	{
-		"interpret list from script in template",
+		"render list var in template",
 		`` +
 			`variable -name="var" << [1, "2", 3.1, True, None, ["a","b"]] >>` + newline +
 			`template <<{{var}}>>`,
@@ -154,7 +154,7 @@ var parseTests = []struct {
 		&model{Body: "[1 2 3.1 true  [a b]]"},
 	},
 	{
-		"interpret tuple from script in template",
+		"render tuple var in template",
 		`` +
 			`variable -name="var" << (1, "2", 3.1, True, None, (1, 2)) >>` + newline +
 			`template <<{{var}}>>`,
@@ -162,7 +162,7 @@ var parseTests = []struct {
 		&model{Body: "[1 2 3.1 true  [1 2]]"},
 	},
 	{
-		"interpret dict from script in template",
+		"render dict var in template",
 		`` +
 			`variable -name="var" << {1: 1, 1.1: None, "a": "2", True: 3.1, None: True} >>` + newline +
 			`template <<{{var}}>>`,
@@ -170,22 +170,85 @@ var parseTests = []struct {
 		&model{Body: "map[1:1 1.1: None:true True:3.1 a:2]"},
 	},
 	{
-		"interpret tuple indexed dict from script in template",
+		"render tuple indexed dict var in template",
 		`` +
 			`variable -name="var" << {("a",1,2.2,True,False,None,(1,2)): "test"} >>` + newline +
 			`template <<{{var}}>>`,
 		data{},
 		&model{Body: "map[a 1 2.2 True False None 1 2:test]"},
 	},
-
-	// todo: test local int variable is correctly passed to other var
-	// todo: test local float variable is correctly passed to other var
-	// todo: test local bool variable is correctly passed to other var
-	// todo: test local null variable is correctly passed to other var
-	// todo: test local tuple variable is correctly passed to other var
-	// todo: test local list variable is correctly passed to other var
-	// todo: test local dict variable is correctly passed to other var
-
+	{
+		"pass int var to other var",
+		`` +
+			`variable -name="var1" << 1 >>					` + newline +
+			`variable -name="var2" << type(vars['var1']) >>	` + newline +
+			`template <<{{var2}}>>`,
+		data{},
+		&model{Body: "int"},
+	},
+	{
+		"pass float var to other var",
+		`` +
+			`variable -name="var1" << 1.1 >>				` + newline +
+			`variable -name="var2" << type(vars['var1']) >>	` + newline +
+			`template <<{{var2}}>>`,
+		data{},
+		&model{Body: "float"},
+	},
+	{
+		"pass string var to other var",
+		`` +
+			`variable -name="var1" << "test" >>				` + newline +
+			`variable -name="var2" << type(vars['var1']) >>	` + newline +
+			`template <<{{var2}}>>`,
+		data{},
+		&model{Body: "string"},
+	},
+	{
+		"pass null var to other var",
+		`` +
+			`variable -name="var1" << None >>				` + newline +
+			`variable -name="var2" << type(vars['var1']) >>	` + newline +
+			`template <<{{var2}}>>`,
+		data{},
+		&model{Body: "NoneType"},
+	},
+	{
+		"pass bool var to other var",
+		`` +
+			`variable -name="var1" << True >>				` + newline +
+			`variable -name="var2" << type(vars['var1']) >>	` + newline +
+			`template <<{{var2}}>>`,
+		data{},
+		&model{Body: "bool"},
+	},
+	{
+		"pass tuple var to other var",
+		`` +
+			`variable -name="var1" << (1,2) >>				` + newline +
+			`variable -name="var2" << type(vars['var1']) >>	` + newline +
+			`template <<{{var2}}>>`,
+		data{},
+		&model{Body: "tuple"},
+	},
+	{
+		"pass list var to other var",
+		`` +
+			`variable -name="var1" << [1,2] >>				` + newline +
+			`variable -name="var2" << type(vars['var1']) >>	` + newline +
+			`template <<{{var2}}>>`,
+		data{},
+		&model{Body: "list"},
+	},
+	{
+		"pass dict var to other var",
+		`` +
+			`variable -name="var1" << {1: "a"} >>			` + newline +
+			`variable -name="var2" << type(vars['var1']) >>	` + newline +
+			`template <<{{var2}}>>`,
+		data{},
+		&model{Body: "dict"},
+	},
 	// todo: test filename tag works
 	// todo: test that filename script is executed
 	// todo: test filename can not return any other type than string
@@ -197,12 +260,15 @@ var parseTests = []struct {
 	// todo: test skipif can not return any other type than boolean
 	// todo: test that global variables can be used in skipif tag
 	// todo: test that local variables can be used in skipif tag
-
 }
 
 func TestParsing(t *testing.T) {
 	for _, test := range parseTests {
-		p := NewParser(test.data)
+		p, err := NewParser(test.data)
+		if err != nil {
+			t.Fatalf("%s:\nunexpected error: %v", test.name, err)
+			return
+		}
 		model, err := p.Parse([]byte(test.input))
 		switch {
 		case err != nil:

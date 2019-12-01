@@ -15,13 +15,50 @@ func init() {
 	resolve.AllowBitwise = true
 }
 
-func execute(content string, vars map[string]interface{}) (interface{}, error) {
+type context map[string]starlark.Value
+
+func newContext(data map[string]interface{}) (context, error) {
+	ctx := make(context)
+	for k, v := range data {
+		val, err := newValue(v)
+		if err != nil {
+			return nil, err
+		}
+		ctx[k] = val
+	}
+	return ctx, nil
+}
+
+func (ctx context) toDict() (*starlark.Dict, error) {
+	dict := starlark.NewDict(len(ctx))
+	for k, v := range ctx {
+		err := dict.SetKey(starlark.String(k), v)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return dict, nil
+}
+
+func (ctx context) toGoMap() (map[string]interface{}, error) {
+	m := make(map[string]interface{})
+	for k, v := range ctx {
+		goval, err := parseValue(v)
+		if err != nil {
+			return nil, err
+		}
+		m[k] = goval
+	}
+	return m, nil
+}
+
+func execute(content string, ctx context) (starlark.Value, error) {
 	thread := &starlark.Thread{
 		Print: func(_ *starlark.Thread, msg string) { log.Println(msg) },
 	}
-	dict, err := varsToDict(vars)
+	dict, err := ctx.toDict()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	predeclared := starlark.StringDict{"vars": dict}
 	globals, err := starlark.ExecFile(thread, "", wrapScript(content), predeclared)
@@ -29,14 +66,13 @@ func execute(content string, vars map[string]interface{}) (interface{}, error) {
 		//if evalErr, ok := err.(*starlark.EvalError); ok {
 		//	log.(evalErr.Backtrace())
 		//}
-		return "", err
+		return nil, err
 	}
 	val, err := starlark.Call(thread, globals["impl"], nil, nil)
-	r, err := parseValue(val)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return r, nil
+	return val, nil
 }
 
 func wrapScript(c string) string {
@@ -47,32 +83,24 @@ func wrapInlineScript(c string) string {
 	return fmt.Sprintf("\treturn %s", c)
 }
 
-func varsToDict(vars map[string]interface{}) (*starlark.Dict, error) {
-	dict := starlark.NewDict(len(vars))
-	for k, v := range vars {
-		var dictVal starlark.Value
-		switch eval := v.(type) {
-		case int:
-			dictVal = starlark.MakeInt(eval)
-		case string:
-			dictVal = starlark.String(eval)
-		case bool:
-			dictVal = starlark.Bool(eval)
-		case []string:
-			list := make([]starlark.Value, len(eval))
-			for i, s := range eval {
-				list[i] = starlark.String(s)
-			}
-			dictVal = starlark.NewList(list)
-		default:
-			return nil, fmt.Errorf("type %T of variable %s is not supported", eval, k)
+func newValue(goval interface{}) (v starlark.Value, _ error) {
+	switch eval := goval.(type) {
+	case int:
+		v = starlark.MakeInt(eval)
+	case string:
+		v = starlark.String(eval)
+	case bool:
+		v = starlark.Bool(eval)
+	case []string:
+		list := make([]starlark.Value, len(eval))
+		for i, s := range eval {
+			list[i] = starlark.String(s)
 		}
-		err := dict.SetKey(starlark.String(k), dictVal)
-		if err != nil {
-			return nil, err
-		}
+		v = starlark.NewList(list)
+	default:
+		return nil, fmt.Errorf("go type %T currently is not supported", eval)
 	}
-	return dict, nil
+	return v, nil
 }
 
 func parseValue(v starlark.Value) (interface{}, error) {

@@ -6,54 +6,62 @@ import (
 	"github.com/g1ntas/accio/markup"
 )
 
-// todo: rename to parser
 type Parser struct {
 	// Shared data to be used in scripts and templates.
 	// It's not thread-safe, thus should not be modified blindly.
-	data   map[string]interface{}
-	markup *Markup
-	tpl    generator.Template
+	ctx context
 }
 
-func NewParser(d map[string]interface{}) *Parser {
-	return &Parser{data: d}
-}
-
-func (p *Parser) Parse(b []byte) (*generator.Template, error) {
-	mp, err := markup.Parse(string(b), "", "")
+func NewParser(d map[string]interface{}) (*Parser, error) {
+	ctx, err := newContext(d)
 	if err != nil {
 		return nil, err
 	}
-	p.markup = parse(mp)
+	return &Parser{ctx: ctx}, nil
+}
 
-	data := p.copyData()
-	for k, val := range p.markup.Vars {
-		s, err := execute(val, p.data)
+func (p *Parser) Parse(b []byte) (*generator.Template, error) {
+	parser, err := markup.Parse(string(b), "", "")
+	if err != nil {
+		return nil, err
+	}
+	m := parse(parser)
+
+	ctx := p.copyContext()
+	for _, variable := range m.Vars {
+		v, err := execute(variable[1], ctx)
 		if err != nil {
 			return nil, err
 		}
-		data[k] = s
+		ctx[variable[0]] = v
 	}
-	// todo: render templates and partials
-	err = p.renderTemplate(data)
-	return &p.tpl, nil
-}
-
-func (p *Parser) renderTemplate(data map[string]interface{}) error {
-	provider := &mustache.StaticProvider{p.markup.Partials}
-	content, err := mustache.RenderPartials(p.markup.Body, provider, data)
+	data, err := ctx.toGoMap()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	p.tpl.Body = content
-	return nil
+	tpl := &generator.Template{}
+	tpl.Body, err = renderTemplate(m, data)
+	if err != nil {
+		return nil, err
+	}
+	return tpl, nil
 }
 
-// copyData makes a copy of data variables, so it can be securely changed without side effects
-func (p *Parser) copyData() map[string]interface{} {
-	d := make(map[string]interface{})
-	for k, v := range p.data {
-		d[k] = v
+func renderTemplate(m *Markup, data map[string]interface{}) (string, error) {
+	provider := &mustache.StaticProvider{Partials: m.Partials}
+	content, err := mustache.RenderPartials(m.Body, provider, data)
+	if err != nil {
+		return "", err
 	}
-	return d
+	return content, nil
+}
+
+// copyContext makes a new copy of context, so it can be
+// safely manipulated without side effects (e.g. race conditions)
+func (p *Parser) copyContext() context {
+	ctx := make(context)
+	for k, v := range p.ctx {
+		ctx[k] = v
+	}
+	return ctx
 }

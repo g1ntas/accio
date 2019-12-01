@@ -21,13 +21,25 @@ type Markup struct {
 	Filename string
 	Skip     string
 	Body     string
-	Vars     map[string]string
+	Vars     vars
 	Partials map[string]string
+}
+
+// vars holds variables in their original order
+type vars [][2]string
+
+func (v *vars) find(key string) int {
+	for i, val := range *v {
+		if val[0] == key {
+			return i
+		}
+	}
+	return -1
 }
 
 func newMarkup() *Markup {
 	return &Markup{
-		Vars: make(map[string]string),
+		Vars:     make(vars, 0, 5),
 		Partials: make(map[string]string),
 	}
 }
@@ -40,10 +52,12 @@ func (m *Markup) setPartial(name, val string) {
 }
 
 func (m *Markup) setVar(name, val string) {
-	if _, ok := m.Vars[name]; ok {
+	if i := m.Vars.find(name); i != -1 {
 		log.Printf("Variable definition for %q already exists. Overwriting...", name)
+		m.Vars[i] = [2]string{name, val}
+		return
 	}
-	m.Vars[name] = val
+	m.Vars = append(m.Vars, [2]string{name, val})
 }
 
 func parse(p *markup.Parser) *Markup {
