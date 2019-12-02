@@ -150,6 +150,20 @@ func parseValue(v starlark.Value) (interface{}, error) {
 	return nil, fmt.Errorf("return type %q currently is not supported", v.Type())
 }
 
+func parseString(v starlark.Value) (string, error) {
+	switch val := v.(type) {
+	case starlark.NoneType:
+		return "", nil
+	case starlark.String:
+		return string(val), nil
+	}
+	return "", fmt.Errorf("expected a string, got %s", v.Type())
+}
+
+func parseBool(v starlark.Value) bool {
+	return bool(v.Truth())
+}
+
 func parseDictKey(v starlark.Value) (string, error) {
 	switch val := v.(type) {
 	case starlark.String:

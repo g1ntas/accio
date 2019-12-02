@@ -12,7 +12,11 @@ import (
 type model = generator.Template
 type data = map[string]interface{}
 
-const newline = "\n"
+const (
+	hasError = false
+	noError  = true
+	newline  = "\n"
+)
 
 func stringify(m *model) string {
 	return fmt.Sprintf("{%q %q %v}", m.Filename, m.Body, m.Skip)
@@ -23,10 +27,11 @@ var parseTests = []struct {
 	input string
 	data  data
 	model *model
+	ok    bool
 }{
-	{"empty", "", data{}, &model{}},
-	{"simple template", "template <<test>>", data{}, &model{Body: "test"}},
-	{"template with predefined variable", "template <<{{var}}>>", data{"var": "test"}, &model{Body: "test"}},
+	{"empty", "", data{}, &model{}, noError},
+	{"simple template", "template <<test>>", data{}, &model{Body: "test"}, noError},
+	{"template with global variable", "template <<{{var}}>>", data{"var": "test"}, &model{Body: "test"}, noError},
 	{
 		"template with partial",
 		`` +
@@ -35,17 +40,19 @@ var parseTests = []struct {
 			`template <<working {{> from}} to {{> till}}>>`,
 		data{},
 		&model{Body: "working 9 to 5"},
+		noError,
 	},
 	{
-		"partial with predefined variable",
+		"partial with global variable",
 		`` +
 			`partial -name="partial" <<{{var}}>>` + newline +
 			`template <<{{> partial}}>>`,
 		data{"var": "test"},
 		&model{Body: "test"},
+		noError,
 	},
 	{
-		"simple variable",
+		"local variable",
 		`` +
 			`variable -name="var" <<` + newline +
 			`	sum = 2 + 2			` + newline +
@@ -54,222 +61,306 @@ var parseTests = []struct {
 			`template <<{{var}}>>`,
 		data{},
 		&model{Body: "4"},
+		noError,
 	},
 	{
-		"inline variable",
+		"inline local variable",
 		`` +
 			`variable -name="var" << 5 + 5 >>` + newline +
 			`template <<{{var}}>>`,
 		data{},
 		&model{Body: "10"},
+		noError,
 	},
 	{
-		"overwrite predefined variable",
+		"overwrite global variable locally",
 		`` +
 			`variable -name="var" << 2 >>` + newline +
 			`template <<{{var}}>>`,
 		data{"var": 1},
 		&model{Body: "2"},
+		noError,
 	},
 	{
-		"use predefined variable inside script",
+		"global variable in script",
 		`` +
-			`variable -name="var" << vars['var'] + 1 >>` + newline +
-			`template <<{{var}}>>`,
-		data{"var": 1},
+			`variable -name="local" << vars['global'] + 1 >>` + newline +
+			`template <<{{local}}>>`,
+		data{"global": 1},
 		&model{Body: "2"},
+		noError,
 	},
 
 	// verify data types are parsed correctly
 	{
-		"render predefined integer in template",
+		"global integer var in template",
 		`template <<{{var}}>>`,
 		data{"var": 1},
 		&model{Body: "1"},
+		noError,
 	},
 	{
-		"render predefined string in template",
+		"global string var in template",
 		`template <<{{var}}>>`,
 		data{"var": "test"},
 		&model{Body: "test"},
+		noError,
 	},
 	{
-		"render predefined bool in template",
+		"global bool var in template",
 		`template <<{{var}}>>`,
 		data{"var": true},
 		&model{Body: "true"},
+		noError,
 	},
 	{
-		"render predefined string list in template",
+		"global string list var in template",
 		`template <<{{#var}}{{.}}{{/var}}>>`,
 		data{"var": []string{"a", "b"}},
 		&model{Body: "ab"},
+		noError,
 	},
 	{
-		"render integer var in template",
+		"local integer var in template",
 		`` +
 			`variable -name="var" << 1 >>` + newline +
 			`template <<{{var}}>>`,
 		data{},
 		&model{Body: "1"},
+		noError,
 	},
 	{
-		"render string var in template",
+		"local string var in template",
 		`` +
 			`variable -name="var" << "test" >>` + newline +
 			`template <<{{var}}>>`,
 		data{},
 		&model{Body: "test"},
+		noError,
 	},
 	{
-		"render boolean var in template",
+		"local boolean var in template",
 		`` +
 			`variable -name="var" << True >>` + newline +
 			`template <<{{var}}>>`,
 		data{},
 		&model{Body: "true"},
+		noError,
 	},
 	{
-		"render float var in template",
+		"local float var in template",
 		`` +
 			`variable -name="var" << 1.5 >>` + newline +
 			`template <<{{var}}>>`,
 		data{},
 		&model{Body: "1.5"},
+		noError,
 	},
 	{
-		"render null var in template",
+		"local null var in template",
 		`` +
 			`variable -name="var" << None >>` + newline +
 			`template <<{{var}}>>`,
 		data{},
 		&model{Body: ""},
+		noError,
 	},
 	{
-		"render list var in template",
+		"local list var in template",
 		`` +
 			`variable -name="var" << [1, "2", 3.1, True, None, ["a","b"]] >>` + newline +
 			`template <<{{var}}>>`,
 		data{},
 		&model{Body: "[1 2 3.1 true  [a b]]"},
+		noError,
 	},
 	{
-		"render tuple var in template",
+		"local tuple var in template",
 		`` +
 			`variable -name="var" << (1, "2", 3.1, True, None, (1, 2)) >>` + newline +
 			`template <<{{var}}>>`,
 		data{},
 		&model{Body: "[1 2 3.1 true  [1 2]]"},
+		noError,
 	},
 	{
-		"render dict var in template",
+		"local dict var in template",
 		`` +
 			`variable -name="var" << {1: 1, 1.1: None, "a": "2", True: 3.1, None: True} >>` + newline +
 			`template <<{{var}}>>`,
 		data{},
 		&model{Body: "map[1:1 1.1: None:true True:3.1 a:2]"},
+		noError,
 	},
 	{
-		"render tuple indexed dict var in template",
+		"local tuple indexed dict var in template",
 		`` +
 			`variable -name="var" << {("a",1,2.2,True,False,None,(1,2)): "test"} >>` + newline +
 			`template <<{{var}}>>`,
 		data{},
 		&model{Body: "map[a 1 2.2 True False None 1 2:test]"},
+		noError,
 	},
 	{
-		"pass int var to other var",
+		"local int var in another local var",
 		`` +
 			`variable -name="var1" << 1 >>					` + newline +
 			`variable -name="var2" << type(vars['var1']) >>	` + newline +
 			`template <<{{var2}}>>`,
 		data{},
 		&model{Body: "int"},
+		noError,
 	},
 	{
-		"pass float var to other var",
+		"local float var in another local var",
 		`` +
 			`variable -name="var1" << 1.1 >>				` + newline +
 			`variable -name="var2" << type(vars['var1']) >>	` + newline +
 			`template <<{{var2}}>>`,
 		data{},
 		&model{Body: "float"},
+		noError,
 	},
 	{
-		"pass string var to other var",
+		"local string var in another local var",
 		`` +
 			`variable -name="var1" << "test" >>				` + newline +
 			`variable -name="var2" << type(vars['var1']) >>	` + newline +
 			`template <<{{var2}}>>`,
 		data{},
 		&model{Body: "string"},
+		noError,
 	},
 	{
-		"pass null var to other var",
+		"local null var in another local var",
 		`` +
 			`variable -name="var1" << None >>				` + newline +
 			`variable -name="var2" << type(vars['var1']) >>	` + newline +
 			`template <<{{var2}}>>`,
 		data{},
 		&model{Body: "NoneType"},
+		noError,
 	},
 	{
-		"pass bool var to other var",
+		"local bool var in another local var",
 		`` +
 			`variable -name="var1" << True >>				` + newline +
 			`variable -name="var2" << type(vars['var1']) >>	` + newline +
 			`template <<{{var2}}>>`,
 		data{},
 		&model{Body: "bool"},
+		noError,
 	},
 	{
-		"pass tuple var to other var",
+		"local tuple var in another local var",
 		`` +
 			`variable -name="var1" << (1,2) >>				` + newline +
 			`variable -name="var2" << type(vars['var1']) >>	` + newline +
 			`template <<{{var2}}>>`,
 		data{},
 		&model{Body: "tuple"},
+		noError,
 	},
 	{
-		"pass list var to other var",
+		"local list var in another local var",
 		`` +
 			`variable -name="var1" << [1,2] >>				` + newline +
 			`variable -name="var2" << type(vars['var1']) >>	` + newline +
 			`template <<{{var2}}>>`,
 		data{},
 		&model{Body: "list"},
+		noError,
 	},
 	{
-		"pass dict var to other var",
+		"local dict var in another local var",
 		`` +
 			`variable -name="var1" << {1: "a"} >>			` + newline +
 			`variable -name="var2" << type(vars['var1']) >>	` + newline +
 			`template <<{{var2}}>>`,
 		data{},
 		&model{Body: "dict"},
+		noError,
 	},
 	{
-		"overwrite previous variable",
+		"overwrite previous local variable",
 		`` +
 			`variable -name="var" << "test" >>			` + newline +
 			`variable -name="var" << vars['var'] >>		` + newline +
 			`template <<{{var}}>>`,
 		data{},
 		&model{Body: "test"},
+		noError,
 	},
 
-	// todo: test filename tag works
-	// todo: test that filename script is executed
-	// todo: test filename can not return any other type than string
-	// todo: test that global variables can be used in filename tag
-	// todo: test that local variables can be used in filename tag
+	// filename tag
+	{
+		"filename returns string",
+		`filename << "test" >>`,
+		data{},
+		&model{Filename: "test"},
+		noError,
+	},
+	{
+		"filename returns null",
+		`filename << None >>`,
+		data{},
+		&model{Filename: ""},
+		noError,
+	},
+	{
+		"filename with global var",
+		`filename << vars['global'] >>`,
+		data{"global": "test"},
+		&model{Filename: "test"},
+		noError,
+	},
+	{
+		"filename with local var",
+		`` +
+			`variable -name="local" << "test" >>` + newline +
+			`filename << vars['local'] >>`,
+		data{},
+		&model{Filename: "test"},
+		noError,
+	},
+	{"filename returns boolean", `filename << True >>`, data{}, nil, hasError},
+	{"filename returns int", `filename << 1 >>`, data{}, nil, hasError},
+	{"filename returns float", `filename << 1.1 >>`, data{}, nil, hasError},
+	{"filename returns dict", `filename << {} >>`, data{}, nil, hasError},
+	{"filename returns list", `filename << [] >>`, data{}, nil, hasError},
+	{"filename returns tuple", `filename << (1,) >>`, data{}, nil, hasError},
 
-	// todo: test skipif tag works
-	// todo: test that skipif script is executed
-	// todo: test skipif can not return any other type than boolean
-	// todo: test that global variables can be used in skipif tag
-	// todo: test that local variables can be used in skipif tag
+	// skipif tag
+	{
+		"skipif returns bool literal",
+		`skipif << True >>`,
+		data{},
+		&model{Skip: true},
+		noError,
+	},
+	{
+		"skipif returns true value",
+		`skipif << "true string" >>`,
+		data{},
+		&model{Skip: true},
+		noError,
+	},
+	{
+		"skipif with global var",
+		`skipif << vars['global'] >>`,
+		data{"global": 1},
+		&model{Skip: true},
+		noError,
+	},
+	{
+		"skipif with local var",
+		`` +
+			`variable -name="local" << ["true"] >>` + newline +
+			`skipif << vars['local'] >>`,
+		data{},
+		&model{Skip: true},
+		noError,
+	},
 }
 
 func TestParsing(t *testing.T) {
@@ -281,8 +372,12 @@ func TestParsing(t *testing.T) {
 		}
 		model, err := p.Parse([]byte(test.input))
 		switch {
-		case err != nil:
+		case err == nil && !test.ok:
+			t.Errorf("%s\nexpected error; got none", test.name)
+		case err != nil && test.ok:
 			t.Errorf("%s:\nunexpected error: %v", test.name, err)
+		case err != nil && !test.ok:
+			continue // expected error, got one
 		case stringify(model) != stringify(test.model):
 			t.Errorf("%s:\ngot:\n\t%v\nexpected:\n\t%v", test.name, stringify(model), stringify(test.model))
 		}

@@ -4,6 +4,7 @@ import (
 	"github.com/cbroglie/mustache"
 	"github.com/g1ntas/accio/generator"
 	"github.com/g1ntas/accio/markup"
+	"strings"
 )
 
 type Parser struct {
@@ -28,6 +29,7 @@ func (p *Parser) Parse(b []byte) (*generator.Template, error) {
 	m := parse(parser)
 
 	ctx := p.copyContext()
+	// variables
 	for _, variable := range m.Vars {
 		v, err := execute(variable[1], ctx)
 		if err != nil {
@@ -35,11 +37,31 @@ func (p *Parser) Parse(b []byte) (*generator.Template, error) {
 		}
 		ctx[variable[0]] = v
 	}
+	tpl := &generator.Template{}
+	// filename
+	if len(strings.TrimSpace(m.Filename)) > 0 {
+		v, err := execute(m.Filename, ctx)
+		if err != nil {
+			return nil, err
+		}
+		filename, err := parseString(v)
+		if err != nil {
+			return nil, err
+		}
+		tpl.Filename = filename
+	}
+	// skipif
+	if len(strings.TrimSpace(m.Skip)) > 0 {
+		v, err := execute(m.Skip, ctx)
+		if err != nil {
+			return nil, err
+		}
+		tpl.Skip = parseBool(v)
+	}
 	data, err := ctx.toGoMap()
 	if err != nil {
 		return nil, err
 	}
-	tpl := &generator.Template{}
 	tpl.Body, err = renderTemplate(m, data)
 	if err != nil {
 		return nil, err
