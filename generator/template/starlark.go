@@ -1,9 +1,11 @@
 package template
 
 import (
+	"errors"
 	"fmt"
 	"go.starlark.net/resolve"
 	"go.starlark.net/starlark"
+	"go.starlark.net/syntax"
 	"log"
 )
 
@@ -11,12 +13,13 @@ func init() {
 	resolve.AllowFloat = true
 	resolve.AllowLambda = true
 	resolve.AllowNestedDef = true
-	resolve.AllowRecursion = true
 	resolve.AllowBitwise = true
 }
 
+// context carries data to be used in starlark scripts and mustache templates.
 type context map[string]starlark.Value
 
+// newContext takes go data, converts it to starlark and returns new context.
 func newContext(data map[string]interface{}) (context, error) {
 	ctx := make(context)
 	for k, v := range data {
@@ -29,6 +32,7 @@ func newContext(data map[string]interface{}) (context, error) {
 	return ctx, nil
 }
 
+// toDict converts context into starlark dictionary.
 func (ctx context) toDict() (*starlark.Dict, error) {
 	dict := starlark.NewDict(len(ctx))
 	for k, v := range ctx {
@@ -63,26 +67,26 @@ func execute(content string, ctx context) (starlark.Value, error) {
 	predeclared := starlark.StringDict{"vars": dict}
 	globals, err := starlark.ExecFile(thread, "", wrapScript(content), predeclared)
 	if err != nil {
-		//if evalErr, ok := err.(*starlark.EvalError); ok {
-		//	log.(evalErr.Backtrace())
-		//}
-		return nil, err
+		return nil, starlarkErr(err)
 	}
 	val, err := starlark.Call(thread, globals["impl"], nil, nil)
 	if err != nil {
-		return nil, err
+		return nil, starlarkErr(err)
 	}
 	return val, nil
 }
 
+// wrapScript wraps starlark code within function, so it can be executed independently.
 func wrapScript(c string) string {
 	return fmt.Sprintf("def impl():\n%s\n", c)
 }
 
+// wrapInlineScript adds syntactic sugar to return value in inline tags.
 func wrapInlineScript(c string) string {
 	return fmt.Sprintf("\treturn %s", c)
 }
 
+// newValue translates any supported go value into corresponding starlark value.
 func newValue(goval interface{}) (v starlark.Value, _ error) {
 	switch eval := goval.(type) {
 	case int:
@@ -98,11 +102,12 @@ func newValue(goval interface{}) (v starlark.Value, _ error) {
 		}
 		v = starlark.NewList(list)
 	default:
-		return nil, fmt.Errorf("go type %T currently is not supported", eval)
+		return nil, fmt.Errorf("go value can not be translated into starlark, data type %T currently is not supported", eval)
 	}
 	return v, nil
 }
 
+// parseValue translates any valid starlark value into corresponding go data type.
 func parseValue(v starlark.Value) (interface{}, error) {
 	switch val := v.(type) {
 	case starlark.NoneType:
@@ -147,9 +152,10 @@ func parseValue(v starlark.Value) (interface{}, error) {
 		}
 		return dict, nil
 	}
-	return nil, fmt.Errorf("return type %q currently is not supported", v.Type())
+	return nil, fmt.Errorf("values of type %s are not supported", v.Type())
 }
 
+// parseString translates starlark string or null value into go string.
 func parseString(v starlark.Value) (string, error) {
 	switch val := v.(type) {
 	case starlark.NoneType:
@@ -160,10 +166,12 @@ func parseString(v starlark.Value) (string, error) {
 	return "", fmt.Errorf("expected a string, got %s", v.Type())
 }
 
+// parseBool translates any starlark value into go boolean.
 func parseBool(v starlark.Value) bool {
 	return bool(v.Truth())
 }
 
+// parseDictKey translates any starlark hashable value into go string.
 func parseDictKey(v starlark.Value) (string, error) {
 	switch val := v.(type) {
 	case starlark.String:
@@ -184,5 +192,22 @@ func parseDictKey(v starlark.Value) (string, error) {
 		}
 		return key, nil
 	}
-	return "", fmt.Errorf("data type %q is not supported as dictionary key", v.Type())
+	return "", fmt.Errorf("value of type %s is not a valid dictionary key", v.Type())
+}
+
+// starlarkErr creates a new error from starlark error.
+func starlarkErr(err error) error {
+	if err == nil {
+		return nil
+	}
+	var msg string
+	switch e := err.(type) {
+	case syntax.Error:
+		msg = e.Msg
+	case resolve.Error:
+		msg = e.Msg
+	default:
+		msg = e.Error()
+	}
+	return errors.New(msg)
 }

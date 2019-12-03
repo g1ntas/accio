@@ -17,51 +17,51 @@ const (
 
 var errSkipTag = errors.New("skip tag")
 
-type Markup struct {
-	Filename string
-	Skip     string
-	Body     string
-	Vars     vars
-	Partials map[string]string
+type schema struct {
+	filename string
+	skip     string
+	body     string
+	vars     vars
+	partials map[string]string
 }
 
 // vars holds variables in their original order
 type vars [][2]string
 
-func newMarkup() *Markup {
-	return &Markup{
-		Vars:     make(vars, 0, 5),
-		Partials: make(map[string]string),
+func newMarkup() *schema {
+	return &schema{
+		vars:     make(vars, 0, 5),
+		partials: make(map[string]string),
 	}
 }
 
-func parse(p *markup.Parser) *Markup {
+func parse(p *markup.Parser) *schema {
 	m := newMarkup()
 	for _, tag := range p.Tags {
 		switch tag.Name {
 		case tagFilename:
-			m.Filename = parseScriptBody(tag)
+			m.filename = parseScriptBody(tag)
 		case tagSkip:
-			m.Skip = parseScriptBody(tag)
+			m.skip = parseScriptBody(tag)
 		case tagTemplate:
-			m.Body = parseBody(tag)
+			m.body = parseBody(tag)
 		case tagPartial, tagVariable:
 			name, err := parseTagNameAttr(tag)
 			if err == errSkipTag {
 				continue
 			}
 			if tag.Body == nil {
-				log.Printf("Tag %q with name %q is missing body. Skipping...\n", tag.Name, name)
+				log.Printf("Tag %q with name %q has no content. Skipping...\n", tag.Name, name)
 				continue
 			}
 			switch tag.Name {
 			case tagPartial:
-				if _, ok := m.Partials[name]; ok {
+				if _, ok := m.partials[name]; ok {
 					log.Printf("Partial definition for %q already exists. Overwriting...", name)
 				}
-				m.Partials[name] = parseBody(tag)
+				m.partials[name] = parseBody(tag)
 			case tagVariable:
-				m.Vars = append(m.Vars, [2]string{name, parseScriptBody(tag)})
+				m.vars = append(m.vars, [2]string{name, parseScriptBody(tag)})
 			}
 		}
 	}
