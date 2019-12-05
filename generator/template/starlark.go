@@ -16,51 +16,11 @@ func init() {
 	resolve.AllowBitwise = true
 }
 
-// context carries data to be used in starlark scripts and mustache templates.
-type context map[string]starlark.Value
-
-// newContext takes go data, converts it to starlark and returns new context.
-func newContext(data map[string]interface{}) (context, error) {
-	ctx := make(context)
-	for k, v := range data {
-		val, err := newValue(v)
-		if err != nil {
-			return nil, err
-		}
-		ctx[k] = val
-	}
-	return ctx, nil
-}
-
-// toDict converts context into starlark dictionary.
-func (ctx context) toDict() (*starlark.Dict, error) {
-	dict := starlark.NewDict(len(ctx))
-	for k, v := range ctx {
-		err := dict.SetKey(starlark.String(k), v)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return dict, nil
-}
-
-func (ctx context) toGoMap() (map[string]interface{}, error) {
-	m := make(map[string]interface{})
-	for k, v := range ctx {
-		goval, err := parseValue(v)
-		if err != nil {
-			return nil, err
-		}
-		m[k] = goval
-	}
-	return m, nil
-}
-
-func execute(content string, ctx context) (starlark.Value, error) {
+func execute(content string, ctx *context) (starlark.Value, error) {
 	thread := &starlark.Thread{
 		Print: func(_ *starlark.Thread, msg string) { log.Println(msg) },
 	}
-	dict, err := ctx.toDict()
+	dict, err := ctx.varsDict()
 	if err != nil {
 		return nil, err
 	}

@@ -361,13 +361,13 @@ var parseTests = []struct {
 		&model{Skip: true},
 		noError,
 	},
-	{
+	/*{
 		"skipif with local var",
 		`template << {{{}} >>`,
 		data{},
 		&model{Skip: true},
 		noError,
-	},
+	},*/
 }
 
 func TestParsing(t *testing.T) {
