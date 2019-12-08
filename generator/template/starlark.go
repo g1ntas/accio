@@ -1,11 +1,9 @@
 package template
 
 import (
-	"errors"
 	"fmt"
 	"go.starlark.net/resolve"
 	"go.starlark.net/starlark"
-	"go.starlark.net/syntax"
 	"log"
 )
 
@@ -27,11 +25,11 @@ func execute(content string, ctx *context) (starlark.Value, error) {
 	predeclared := starlark.StringDict{"vars": dict}
 	globals, err := starlark.ExecFile(thread, "", wrapScript(content), predeclared)
 	if err != nil {
-		return nil, starlarkErr(err)
+		return nil, err
 	}
 	val, err := starlark.Call(thread, globals["impl"], nil, nil)
 	if err != nil {
-		return nil, starlarkErr(err)
+		return nil, err
 	}
 	return val, nil
 }
@@ -153,21 +151,4 @@ func parseDictKey(v starlark.Value) (string, error) {
 		return key, nil
 	}
 	return "", fmt.Errorf("value of type %s is not a valid dictionary key", v.Type())
-}
-
-// starlarkErr creates a new error from starlark error.
-func starlarkErr(err error) error {
-	if err == nil {
-		return nil
-	}
-	var msg string
-	switch e := err.(type) {
-	case syntax.Error:
-		msg = e.Msg
-	case resolve.Error:
-		msg = e.Msg
-	default:
-		msg = e.Error()
-	}
-	return errors.New(msg)
 }

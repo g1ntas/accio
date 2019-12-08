@@ -1,12 +1,13 @@
 package template // todo: rename to Model (ModelParser)
 
 import (
-	"errors"
 	"fmt"
 	"github.com/cbroglie/mustache"
 	"github.com/g1ntas/accio/generator"
 	"github.com/g1ntas/accio/markup"
+	"go.starlark.net/resolve"
 	"go.starlark.net/starlark"
+	"go.starlark.net/syntax"
 	"strconv"
 	"strings"
 )
@@ -32,14 +33,14 @@ var tagsPriority = map[string]uint{
 
 // context carries data to be used in starlark scripts and mustache templates.
 type context struct {
-	vars map[string]starlark.Value
+	vars     map[string]starlark.Value
 	partials map[string]string
 }
 
 // newContext creates new context with predefined starlark data.
 func newContext(data map[string]interface{}) (context, error) {
 	ctx := context{
-		vars: make(map[string]starlark.Value),
+		vars:     make(map[string]starlark.Value),
 		partials: make(map[string]string),
 	}
 	for k, v := range data {
@@ -98,27 +99,35 @@ type Parser struct {
 }
 
 type ParseError struct {
-	Op, Msg, Tag string
-	Line         int
+	Msg, Tag string
+	Line     int
 }
 
 func (err ParseError) Error() string {
-	// Msg: unmatched open tag
-	// Tag: template
-	// Line: 1
-	// failed to parse tag 'template' because error occurred on line 1 (unmatched open tag)
-	/*msg := err.Msg
-	if len(err.Tag) != 0 {
-		msg = fmt.Sprintf("%s", err.Msg)
-	}
-	if err.Line != 0 {
-
-	}*/
-	return fmt.Sprintf("%s", err.Msg)
+	return fmt.Sprintf("failed to parse tag %q on line %d: %s", err.Tag, err.Line, err.Msg)
 }
 
-func newErr(msg string) ParseError {
-	return ParseError{Msg: msg}
+func newErr(msg string, tag string, line int) *ParseError {
+	return &ParseError{msg, tag, line}
+}
+
+// evalErr creates a new ParseError from external error.
+func evalErr(tag *markup.TagNode, err error) error {
+	if err == nil {
+		return nil
+	}
+	newErr := &ParseError{Tag: tag.Name, Line: tag.Line}
+	switch e := err.(type) {
+	case syntax.Error:
+		newErr.Msg = e.Msg
+		newErr.Line = evalErrLine(tag, int(e.Pos.Line)-1)
+	case resolve.Error:
+		newErr.Msg = e.Msg
+		newErr.Line = evalErrLine(tag, int(e.Pos.Line)-1)
+	default:
+		newErr.Msg = e.Error()
+	}
+	return newErr
 }
 
 func NewParser(d map[string]interface{}) (*Parser, error) {
@@ -197,10 +206,36 @@ func parseVariable(tag *markup.TagNode, ctx *context) error {
 	}
 	val, err := execute(parseScriptBody(tag), ctx)
 	if err != nil {
-		return err
+		return evalErr(tag, err)
 	}
 	ctx.vars[name] = val
 	return nil
+}
+
+func parseFilename(tag *markup.TagNode, ctx *context) (string, error) {
+	if hasEmptyBody(tag) {
+		return "", nil
+	}
+	v, err := execute(parseScriptBody(tag), ctx)
+	if err != nil {
+		return "", evalErr(tag, err)
+	}
+	filename, err := parseString(v)
+	if err != nil {
+		return "", evalErr(tag, err)
+	}
+	return filename, nil
+}
+
+func parseSkip(tag *markup.TagNode, ctx *context) (bool, error) {
+	if hasEmptyBody(tag) {
+		return false, nil
+	}
+	v, err := execute(parseScriptBody(tag), ctx)
+	if err != nil {
+		return false, evalErr(tag, err)
+	}
+	return parseBool(v), nil
 }
 
 func parsePartial(tag *markup.TagNode, ctx *context) error {
@@ -215,32 +250,6 @@ func parsePartial(tag *markup.TagNode, ctx *context) error {
 	return nil
 }
 
-func parseFilename(tag *markup.TagNode, ctx *context) (string, error) {
-	if hasEmptyBody(tag) {
-		return "", nil
-	}
-	v, err := execute(parseScriptBody(tag), ctx)
-	if err != nil {
-		return "", err
-	}
-	filename, err := parseString(v)
-	if err != nil {
-		return "", err
-	}
-	return filename, nil
-}
-
-func parseSkip(tag *markup.TagNode, ctx *context) (bool, error) {
-	if hasEmptyBody(tag) {
-		return false, nil
-	}
-	v, err := execute(parseScriptBody(tag), ctx)
-	if err != nil {
-		return false, err
-	}
-	return parseBool(v), nil
-}
-
 func renderTemplate(tag *markup.TagNode, ctx *context) (string, error) {
 	data, err := ctx.varsGoMap()
 	if err != nil {
@@ -253,8 +262,8 @@ func renderTemplate(tag *markup.TagNode, ctx *context) (string, error) {
 	}
 	content, err := mustache.RenderPartials(body, provider, data)
 	if err != nil {
-		msg, _ := splitMustacheError(err)
-		return "", errors.New(msg)
+		msg, line := splitMustacheError(err)
+		return "", newErr(msg, tag.Name, evalErrLine(tag, line))
 	}
 	return content, nil
 }
@@ -305,4 +314,11 @@ func parseScriptBody(tag *markup.TagNode) string {
 		return wrapInlineScript(tag.Body.Content)
 	}
 	return tag.Body.Content
+}
+
+func evalErrLine(tag *markup.TagNode, line int) int {
+	if tag.Body == nil || tag.Body.Inline {
+		return tag.Line
+	}
+	return tag.Line + line
 }

@@ -361,13 +361,6 @@ var parseTests = []struct {
 		&model{Skip: true},
 		noError,
 	},
-	/*{
-		"skipif with local var",
-		`template << {{{}} >>`,
-		data{},
-		&model{Skip: true},
-		noError,
-	},*/
 }
 
 func TestParsing(t *testing.T) {
@@ -387,6 +380,45 @@ func TestParsing(t *testing.T) {
 			continue // expected error, got one
 		case stringify(model) != stringify(test.model):
 			t.Errorf("%s:\ngot:\n\t%v\nexpected:\n\t%v", test.name, stringify(model), stringify(test.model))
+		}
+	}
+}
+
+var errorTests = []struct {
+	name  string
+	input string
+	tag   string
+	line  int
+}{
+	{"mustache error", "template <<\n{{}\n>>", "template", 2},
+	{"inline mustache error", "template << {{} >>", "template", 1},
+	{"inline starlark error with line", `filename << © >>`, "filename", 1},
+	{"starlark error with line", "filename <<\n\treturn ©\n>>", "filename", 2},
+	{"starlark error without line", "\n\n\nfilename <<\n\treturn 1/0\n>>", "filename", 4},
+}
+
+func TestErrors(t *testing.T) {
+	for _, test := range errorTests {
+		p, err := NewParser(data{})
+		if err != nil {
+			t.Fatalf("%s:\nunexpected error: %v", test.name, err)
+			return
+		}
+		_, err = p.Parse([]byte(test.input))
+		if err == nil {
+			t.Errorf("%s:\nexpected error; got none", test.name)
+			return
+		}
+		e, ok := err.(*ParseError)
+		if !ok {
+			t.Errorf("%s\nexpected *template.ParseError; got %T", test.name, err)
+			return
+		}
+		switch {
+		case e.Tag != test.tag:
+			t.Errorf("%s:\nexpected tag %q; got %q", test.name, test.tag, e.Tag)
+		case e.Line != test.line:
+			t.Errorf("%s:\nexpected line %d; got %d", test.name, test.line, e.Line)
 		}
 	}
 }

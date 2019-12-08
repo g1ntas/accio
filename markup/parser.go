@@ -17,6 +17,7 @@ type TagNode struct {
 	Attributes map[string]*AttrNode
 	Body *Body
 	Name string
+	Line int
 }
 
 type Body struct {
@@ -115,7 +116,7 @@ func parseTemplate(p *Parser) parseStateFn {
 
 // parseTag todo
 func parseTag(p *Parser) parseStateFn {
-	p.tag = &TagNode{Name: p.token.val}
+	p.tag = &TagNode{Name: p.token.val, Line: p.token.line}
 	p.tag.Attributes = make(map[string]*AttrNode)
 	return parseAttrOrBody
 }
