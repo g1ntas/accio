@@ -29,12 +29,12 @@ func (m PromptMap) UnmarshalTOML(data interface{}) error {
 		if !ok {
 			return fmt.Errorf("missing type for prompt %q", key)
 		}
-		base := base{}
+		base := Base{}
 		var err error
-		if base.msg, err = parsePromptMessage(mapping, key); err != nil {
+		if base.Msg, err = parsePromptMessage(mapping, key); err != nil {
 			return err
 		}
-		base.help, _ = mapping["help"].(string)
+		base.Help, _ = mapping["help"].(string)
 		switch typ {
 		case promptInput:
 			m[key] = &input{base}

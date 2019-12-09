@@ -119,6 +119,8 @@ func evalErr(tag *markup.TagNode, err error) error {
 	case resolve.Error:
 		newErr.Msg = e.Msg
 		newErr.Line = evalErrLine(tag, int(e.Pos.Line)-1)
+	case resolve.ErrorList:
+		return evalErr(tag, e[0])
 	default:
 		newErr.Msg = e.Error()
 	}

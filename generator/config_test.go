@@ -27,17 +27,17 @@ func strOfLen(n int) string {
 func promptSignature(p Prompt) string {
 	switch v := p.(type) {
 	case *input:
-		return fmt.Sprintf("%q %q", v.msg, v.help)
+		return fmt.Sprintf("%q %q", v.Msg, v.Help)
 	case *integer:
-		return fmt.Sprintf("%q %q", v.msg, v.help)
+		return fmt.Sprintf("%q %q", v.Msg, v.Help)
 	case *confirm:
-		return fmt.Sprintf("%q %q", v.msg, v.help)
+		return fmt.Sprintf("%q %q", v.Msg, v.Help)
 	case *list:
-		return fmt.Sprintf("%q %q", v.msg, v.help)
+		return fmt.Sprintf("%q %q", v.Msg, v.Help)
 	case *choice:
-		return fmt.Sprintf("%q %q %v", v.msg, v.help, v.options)
+		return fmt.Sprintf("%q %q %v", v.Msg, v.Help, v.options)
 	case *multiChoice:
-		return fmt.Sprintf("%q %q %v", v.msg, v.help, v.options)
+		return fmt.Sprintf("%q %q %v", v.Msg, v.Help, v.options)
 	default:
 		panic(fmt.Sprintf("Unknown Prompt: %s", p.kind()))
 	}
@@ -152,7 +152,7 @@ var configTests = []struct {
 	{
 		"Prompt with valid var name",
 		conf{"name": "a", "prompts": conf{"_Var_1": conf{"type": "input", "message": "test"}}},
-		Generator{Name: "a", Prompts: PromptMap{"_Var_1": &input{base{msg: "test"}}}},
+		Generator{Name: "a", Prompts: PromptMap{"_Var_1": &input{Base{Msg: "test"}}}},
 		noError,
 	},
 	{
@@ -170,31 +170,31 @@ var configTests = []struct {
 	{
 		"Prompt type input",
 		conf{"name": "a", "prompts": conf{"var": conf{"type": "input", "message": "test"}}},
-		Generator{Name: "a", Prompts: PromptMap{"var": &input{base{msg: "test"}}}},
+		Generator{Name: "a", Prompts: PromptMap{"var": &input{Base{Msg: "test"}}}},
 		noError,
 	},
 	{
 		"Prompt help",
 		conf{"name": "a", "prompts": conf{"var": conf{"type": "input", "message": "test", "help": "abc"}}},
-		Generator{Name: "a", Prompts: PromptMap{"var": &input{base{msg: "test", help: "abc"}}}},
+		Generator{Name: "a", Prompts: PromptMap{"var": &input{Base{Msg: "test", Help: "abc"}}}},
 		noError,
 	},
 	{
 		"Prompt type integer",
 		conf{"name": "a", "prompts": conf{"var": conf{"type": "input", "message": "test"}}},
-		Generator{Name: "a", Prompts: PromptMap{"var": &integer{base{msg: "test"}}}},
+		Generator{Name: "a", Prompts: PromptMap{"var": &integer{Base{Msg: "test"}}}},
 		noError,
 	},
 	{
 		"Prompt type confirm",
 		conf{"name": "a", "prompts": conf{"var": conf{"type": "input", "message": "test"}}},
-		Generator{Name: "a", Prompts: PromptMap{"var": &confirm{base{msg: "test"}}}},
+		Generator{Name: "a", Prompts: PromptMap{"var": &confirm{Base{Msg: "test"}}}},
 		noError,
 	},
 	{
 		"Prompt type list",
 		conf{"name": "a", "prompts": conf{"var": conf{"type": "list", "message": "test"}}},
-		Generator{Name: "a", Prompts: PromptMap{"var": &confirm{base{msg: "test"}}}},
+		Generator{Name: "a", Prompts: PromptMap{"var": &confirm{Base{Msg: "test"}}}},
 		noError,
 	},
 	{
@@ -206,7 +206,7 @@ var configTests = []struct {
 		}}},
 		Generator{Name: "a", Prompts: PromptMap{"var":
 		&choice{
-			base{msg: "test"},
+			Base{Msg: "test"},
 			[]string{"a", "b"},
 		},
 		}},
@@ -230,7 +230,7 @@ var configTests = []struct {
 		}}},
 		Generator{Name: "a", Prompts: PromptMap{"var":
 		&multiChoice{
-			base{msg: "test"},
+			Base{Msg: "test"},
 			[]string{"a", "b"},
 		},
 		}},

@@ -32,14 +32,14 @@ type Prompt interface {
 
 type PromptMap map[string]Prompt
 
-type base struct {
-	msg  string
-	help string
+type Base struct {
+	Msg  string
+	Help string
 }
 
 // input
 type input struct {
-	base
+	Base
 }
 
 func (p *input) kind() string {
@@ -47,13 +47,13 @@ func (p *input) kind() string {
 }
 
 func (p *input) Prompt(prompter Prompter) (interface{}, error) {
-	return prompter.Get(p.msg, p.help, nilValidator)
+	return prompter.Get(p.Msg, p.Help, nilValidator)
 }
 
 
 // integer
 type integer struct {
-	base
+	Base
 }
 
 func (p *integer) kind() string {
@@ -61,7 +61,7 @@ func (p *integer) kind() string {
 }
 
 func (p *integer) Prompt(prompter Prompter) (interface{}, error) {
-	val, err := prompter.Get(p.msg, p.help, func(val string) error {
+	val, err := prompter.Get(p.Msg, p.Help, func(val string) error {
 		for i, r := range val {
 			if r < '0' || r > '9' || (r == '-' && i != 0) {
 				return errors.New("value is not an integer")
@@ -78,7 +78,7 @@ func (p *integer) Prompt(prompter Prompter) (interface{}, error) {
 
 // confirm
 type confirm struct {
-	base
+	Base
 }
 
 func (p *confirm) kind() string {
@@ -86,13 +86,13 @@ func (p *confirm) kind() string {
 }
 
 func (p *confirm) Prompt(prompter Prompter) (interface{}, error) {
-	return prompter.Confirm(p.msg, p.help)
+	return prompter.Confirm(p.Msg, p.Help)
 }
 
 
 // list
 type list struct {
-	base
+	Base
 }
 
 func (p *list) kind() string {
@@ -100,7 +100,7 @@ func (p *list) kind() string {
 }
 
 func (p *list) Prompt(prompter Prompter) (interface{}, error) {
-	val, err := prompter.Get(p.msg, p.help, nilValidator)
+	val, err := prompter.Get(p.Msg, p.Help, nilValidator)
 	// todo: split string by comma
 	return val, err
 }
@@ -108,7 +108,7 @@ func (p *list) Prompt(prompter Prompter) (interface{}, error) {
 
 // choice
 type choice struct {
-	base
+	Base
 	options []string
 }
 
@@ -117,13 +117,13 @@ func (p *choice) kind() string {
 }
 
 func (p *choice) Prompt(prompter Prompter) (interface{}, error) {
-	return prompter.SelectOne(p.msg, p.help, p.options)
+	return prompter.SelectOne(p.Msg, p.Help, p.options)
 }
 
 
 // multiChoice
 type multiChoice struct {
-	base
+	Base
 	options []string
 }
 
@@ -132,5 +132,5 @@ func (p *multiChoice) kind() string {
 }
 
 func (p *multiChoice) Prompt(prompter Prompter) (interface{}, error) {
-	return prompter.SelectMultiple(p.msg, p.help, p.options)
+	return prompter.SelectMultiple(p.Msg, p.Help, p.options)
 }

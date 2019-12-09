@@ -393,6 +393,7 @@ var errorTests = []struct {
 	{"inline starlark error with line", `filename << © >>`, "filename", 1},
 	{"starlark error with line", "filename <<\n\treturn ©\n>>", "filename", 2},
 	{"starlark error without line", "\n\n\nfilename <<\n\treturn 1/0\n>>", "filename", 4},
+	{"starlark error list", "filename <<\n\treturn undefined\n>>", "filename", 2},
 }
 
 func TestErrors(t *testing.T) {
