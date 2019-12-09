@@ -9,7 +9,7 @@ import (
 
 const (
 	manifestFilename = ".accio.toml"
-	templateExt = ".accio"
+	templateExt      = ".accio"
 )
 
 type Generator struct {
@@ -97,9 +97,9 @@ func (g *Generator) manifestPath() string {
 }
 
 type Runner struct {
-	fs        Filesystem
-	tplEngine ModelParser
-	writeDir  string // absolute path to the directory to write generated files
+	fs       Filesystem
+	mp       ModelParser
+	writeDir string // absolute path to the directory to write generated files
 
 	// Confirmation callback to overwrite existing files.
 	// Returning true overwrites files, and false skips them.
@@ -107,10 +107,10 @@ type Runner struct {
 }
 
 // todo: implement functional options
-func NewRunner(fs Filesystem, tpl ModelParser, dir string, overwriteFunc func(path string) bool) *Runner {
+func NewRunner(fs Filesystem, mp ModelParser, dir string, overwriteFunc func(path string) bool) *Runner {
 	return &Runner{
 		fs:            fs,
-		tplEngine:     tpl,
+		mp:            mp,
 		writeDir:      dir,
 		overwriteFunc: overwriteFunc,
 	}
@@ -136,7 +136,7 @@ func (r *Runner) Run(generator *Generator) error {
 		target := filepath.Join(r.writeDir, relpath)
 		if hasTemplateExtension(target) {
 			target = target[:len(target)-len(templateExt)] // remove ext
-			tpl, err := r.tplEngine.Parse(body)
+			tpl, err := r.mp.Parse(body)
 			switch {
 			case err != nil:
 				return err
