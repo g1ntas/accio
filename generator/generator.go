@@ -7,8 +7,10 @@ import (
 	"strings"
 )
 
-const manifestFilename string = ".accio.toml"
-const templateExt = ".accio"
+const (
+	manifestFilename = ".accio.toml"
+	templateExt = ".accio"
+)
 
 type Generator struct {
 	Dest        string
@@ -25,14 +27,14 @@ type GeneratorError struct {
 	Err  error
 }
 
-type Template struct {
+type model = struct {
 	Body     string
 	Filename string
 	Skip     bool
 }
 
-type TemplateEngine interface {
-	Parse(b []byte, data map[string]interface{}) (*Template, error)
+type ModelParser interface {
+	Parse(b []byte) (*model, error)
 }
 
 type Writer interface {
@@ -96,7 +98,7 @@ func (g *Generator) manifestPath() string {
 
 type Runner struct {
 	fs        Filesystem
-	tplEngine TemplateEngine
+	tplEngine ModelParser
 	writeDir  string // absolute path to the directory to write generated files
 
 	// Confirmation callback to overwrite existing files.
@@ -104,7 +106,8 @@ type Runner struct {
 	overwriteFunc func(path string) bool
 }
 
-func NewRunner(fs Filesystem, tpl TemplateEngine, dir string, overwriteFunc func(path string) bool) *Runner {
+// todo: implement functional options
+func NewRunner(fs Filesystem, tpl ModelParser, dir string, overwriteFunc func(path string) bool) *Runner {
 	return &Runner{
 		fs:            fs,
 		tplEngine:     tpl,
@@ -113,7 +116,7 @@ func NewRunner(fs Filesystem, tpl TemplateEngine, dir string, overwriteFunc func
 	}
 }
 
-func (r *Runner) Run(generator *Generator, data map[string]interface{}) error {
+func (r *Runner) Run(generator *Generator) error {
 	return r.fs.Walk(generator.Dest, func(abspath string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -133,7 +136,7 @@ func (r *Runner) Run(generator *Generator, data map[string]interface{}) error {
 		target := filepath.Join(r.writeDir, relpath)
 		if hasTemplateExtension(target) {
 			target = target[:len(target)-len(templateExt)] // remove ext
-			tpl, err := r.tplEngine.Parse(body, data)
+			tpl, err := r.tplEngine.Parse(body)
 			switch {
 			case err != nil:
 				return err

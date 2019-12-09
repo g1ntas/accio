@@ -1,15 +1,13 @@
-package template
+package model
 
 import (
 	"fmt"
-	"github.com/g1ntas/accio/generator"
 	"testing"
 )
 
-// render simple template
-// render template with predefined variable
+// render simple model
+// render model with predefined variable
 
-type model = generator.Template
 type data = map[string]interface{}
 
 const (
@@ -411,7 +409,7 @@ func TestErrors(t *testing.T) {
 		}
 		e, ok := err.(*ParseError)
 		if !ok {
-			t.Errorf("%s\nexpected *template.ParseError; got %T", test.name, err)
+			t.Errorf("%s\nexpected *model.ParseError; got %T", test.name, err)
 			return
 		}
 		switch {

@@ -1,9 +1,8 @@
-package template // todo: rename to Model (ModelParser)
+package model
 
 import (
 	"fmt"
 	"github.com/cbroglie/mustache"
-	"github.com/g1ntas/accio/generator"
 	"github.com/g1ntas/accio/markup"
 	"go.starlark.net/resolve"
 	"go.starlark.net/starlark"
@@ -94,10 +93,6 @@ func (ctx *context) varsGoMap() (map[string]interface{}, error) {
 	return m, nil
 }
 
-type Parser struct {
-	ctx context
-}
-
 type ParseError struct {
 	Msg, Tag string
 	Line     int
@@ -130,6 +125,10 @@ func evalErr(tag *markup.TagNode, err error) error {
 	return newErr
 }
 
+type Parser struct {
+	ctx context
+}
+
 func NewParser(d map[string]interface{}) (*Parser, error) {
 	ctx, err := newContext(d)
 	if err != nil {
@@ -138,7 +137,15 @@ func NewParser(d map[string]interface{}) (*Parser, error) {
 	return &Parser{ctx: ctx}, nil
 }
 
-func (p *Parser) Parse(b []byte) (*generator.Template, error) {
+// model is an alias for an anonymous struct used in
+// generator.ModelParser interface.
+type model = struct {
+	Body     string
+	Filename string
+	Skip     bool
+}
+
+func (p *Parser) Parse(b []byte) (*model, error) {
 	parser, err := markup.Parse(string(b), "", "")
 	if err != nil {
 		return nil, err
@@ -147,9 +154,9 @@ func (p *Parser) Parse(b []byte) (*generator.Template, error) {
 	return parse(parser, &ctx)
 }
 
-func parse(p *markup.Parser, ctx *context) (*generator.Template, error) {
+func parse(p *markup.Parser, ctx *context) (*model, error) {
 	var err error
-	tpl := &generator.Template{}
+	mod := &model{}
 	for _, tag := range orderTags(p.Tags) {
 		switch tag.Name {
 		case tagVariable:
@@ -158,12 +165,12 @@ func parse(p *markup.Parser, ctx *context) (*generator.Template, error) {
 				return nil, err
 			}
 		case tagFilename:
-			tpl.Filename, err = parseFilename(tag, ctx)
+			mod.Filename, err = parseFilename(tag, ctx)
 			if err != nil {
 				return nil, err
 			}
 		case tagSkip:
-			tpl.Skip, err = parseSkip(tag, ctx)
+			mod.Skip, err = parseSkip(tag, ctx)
 			if err != nil {
 				return nil, err
 			}
@@ -173,13 +180,13 @@ func parse(p *markup.Parser, ctx *context) (*generator.Template, error) {
 				return nil, err
 			}
 		case tagTemplate:
-			tpl.Body, err = renderTemplate(tag, ctx)
+			mod.Body, err = renderTemplate(tag, ctx)
 			if err != nil {
 				return nil, err
 			}
 		}
 	}
-	return tpl, nil
+	return mod, nil
 }
 
 // orderTags sorts tag nodes in their parse order.

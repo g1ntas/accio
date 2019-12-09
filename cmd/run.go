@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/g1ntas/accio/fs"
 	"github.com/g1ntas/accio/generator"
-	"github.com/g1ntas/accio/generator/template"
+	"github.com/g1ntas/accio/generator/model"
 	"github.com/g1ntas/accio/prompter"
 	"github.com/spf13/cobra"
 	"os"
@@ -23,10 +23,7 @@ var runCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		filesystem := fs.NewNativeFS()
 		promp := prompter.NewCLIPrompter()
-		tpl := &template.Parser{}
-
 		generators := registry.FindGenerators(args[0])
 		if len(generators) == 0 {
 			return errors.New("no generators found with a given name")
@@ -48,8 +45,16 @@ var runCmd = &cobra.Command{
 		} else {
 			gen = generators[0]
 		}
-
-		runner := generator.NewRunner(filesystem, tpl, writeDir, func(path string) bool {
+		data, err := gen.PromptAll(promp)
+		if err != nil {
+			return err
+		}
+		parser, err := model.NewParser(data)
+		if err != nil {
+			return err
+		}
+		filesystem := fs.NewNativeFS()
+		runner := generator.NewRunner(filesystem, parser, writeDir, func(path string) bool {
 			fmt.Printf("File at path %q already exists\n", path)
 			overwrite, err := promp.Confirm("Do you want to overwrite it?", "")
 			if err != nil {
@@ -59,11 +64,7 @@ var runCmd = &cobra.Command{
 			return overwrite
 		})
 
-		data, err := gen.PromptAll(promp)
-		if err != nil {
-			return err
-		}
-		err = runner.Run(gen, data)
+		err = runner.Run(gen)
 		if err != nil {
 			return err
 		}

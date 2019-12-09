@@ -1,4 +1,4 @@
-package template
+package model
 
 import (
 	"fmt"

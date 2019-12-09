@@ -101,14 +101,14 @@ func (fs *fsMock) Stat(name string) (os.FileInfo, error) {
 	return nil, os.ErrNotExist
 }
 
-// tplEngineMock represents TemplateEngine implementation
-type tplEngineMock struct{}
+// modelParserMock represents ModelParser implementation
+type modelParserMock struct{}
 
-var _ TemplateEngine = (*tplEngineMock)(nil)
+var _ ModelParser = (*modelParserMock)(nil)
 
-// Parse decodes json into Template
-func (e *tplEngineMock) Parse(b []byte, _ map[string]interface{}) (*Template, error) {
-	tpl := &Template{}
+// Parse decodes json into Model
+func (e *modelParserMock) Parse(b []byte) (*model, error) {
+	tpl := &model{}
 	err := json.Unmarshal(b, tpl)
 	if err != nil {
 		return nil, err
@@ -177,37 +177,37 @@ var runnerTests = []struct {
 		skipExisting,
 	},
 	{
-		"write template file",
+		"write model file",
 		tree{file("generator/test.txt.accio", `{"body": "test"}`)},
 		tree{file("output/test.txt", "test")},
 		skipExisting,
 	},
 	{
-		"template | skip file",
+		"model | skip file",
 		tree{file("generator/test.txt.accio", `{"skip": true}`)},
 		tree{},
 		skipExisting,
 	},
 	{
-		"template | custom filename",
+		"model | custom filename",
 		tree{file("generator/test.txt.accio", `{"filename": "custom.txt", "body": "---"}`)},
 		tree{file("output/custom.txt", "---")},
 		skipExisting,
 	},
 	{
-		"template | nested custom filename",
+		"model | nested custom filename",
 		tree{file("generator/test.txt.accio", `{"filename": "dir/custom.txt"}`)},
 		tree{file("output/dir/custom.txt", "")},
 		skipExisting,
 	},
 	{
-		"template | append static name if filename is directory",
+		"model | append static name if filename is directory",
 		tree{dir("output/abc"), file("generator/test.txt.accio", `{"filename": "abc"}`)},
 		tree{file("output/abc/test.txt", "")},
 		skipExisting,
 	},
 	{
-		"template | don't write outside root",
+		"model | don't write outside root",
 		tree{file("generator/test.txt.accio", `{"filename": "../../../custom.txt"}`)},
 		tree{file("output/custom.txt", "")},
 		skipExisting,
@@ -230,10 +230,10 @@ func TestRunner(t *testing.T) {
 	gen := &Generator{Dest: "generator"}
 	for _, test := range runnerTests {
 		fs := &fsMock{test.input, tree{}}
-		runner := NewRunner(fs, &tplEngineMock{}, "output", func(p string) bool {
+		runner := NewRunner(fs, &modelParserMock{}, "output", func(p string) bool {
 			return !test.skipExisting
 		})
-		err := runner.Run(gen, map[string]interface{}{})
+		err := runner.Run(gen)
 		switch {
 		case err != nil:
 			t.Errorf("%s:\nunexpected error: %v", test.name, err)
