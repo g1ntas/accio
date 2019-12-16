@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"github.com/g1ntas/accio/generator"
 	"github.com/spf13/cobra"
@@ -64,7 +65,7 @@ func loadRegistry() (*generator.Registry, error) {
 		return nil, err
 	}
 	f, err := os.Open(path)
-	if os.IsNotExist(err) {
+	if errors.Is(err, os.ErrNotExist) {
 		return generator.NewRegistry(), nil
 	}
 	if err != nil {
