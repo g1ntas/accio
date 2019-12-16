@@ -2,6 +2,7 @@ package generator
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 )
 
@@ -100,11 +101,19 @@ func (p *list) kind() string {
 }
 
 func (p *list) Prompt(prompter Prompter) (interface{}, error) {
-	val, err := prompter.Get(p.Msg, p.Help, nilValidator)
-	// todo: split string by comma
-	return val, err
+	values := make([]string, 0, 5)
+	help := fmt.Sprintf("Return empty value to finish.\n\n%s", p.Help)
+	for {
+		val, err := prompter.Get(p.Msg, help, nilValidator)
+		if err != nil {
+			return nil, err
+		}
+		if val == "" {
+			return values, nil
+		}
+		values = append(values, val)
+	}
 }
-
 
 // choice
 type choice struct {
