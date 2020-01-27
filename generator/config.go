@@ -34,7 +34,7 @@ func (m PromptMap) UnmarshalTOML(data interface{}) error {
 		if base.Msg, err = parsePromptMessage(mapping, key); err != nil {
 			return err
 		}
-		base.Help, _ = mapping["help"].(string)
+		base.HelpText, _ = mapping["help"].(string)
 		switch typ {
 		case promptInput:
 			m[key] = &input{base}

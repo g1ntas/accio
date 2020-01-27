@@ -6,6 +6,13 @@ import (
 	"path/filepath"
 )
 
+type Filesystem interface {
+	WriteFile(name string, data []byte, perm os.FileMode) error
+	ReadFile(name string) ([]byte, error)
+	Walk(root string, walkFn filepath.WalkFunc) error
+	Stat(name string) (os.FileInfo, error)
+}
+
 type NativeFS struct {
 }
 
@@ -31,4 +38,16 @@ func (fs *NativeFS) Walk(root string, walkFn filepath.WalkFunc) error {
 
 func (fs *NativeFS) Stat(name string) (os.FileInfo, error) {
 	return os.Stat(name)
+}
+
+func NewDryFS(fs Filesystem) *DryFS {
+	return &DryFS{fs}
+}
+
+type DryFS struct {
+	Filesystem
+}
+
+func (fs *DryFS) WriteFile(name string, data []byte, perm os.FileMode) error {
+	return nil
 }

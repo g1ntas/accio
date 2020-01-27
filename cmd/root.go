@@ -2,13 +2,21 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/g1ntas/accio/fs"
 	"github.com/g1ntas/accio/generator"
+	"github.com/g1ntas/accio/prompter"
 	"github.com/spf13/cobra"
 	"os"
 	"path/filepath"
 )
 
-var registry *generator.Registry
+var env environment
+
+type environment struct {
+	fs fs.Filesystem
+	prompter *prompter.CLI
+	registry *generator.Registry
+}
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -25,12 +33,14 @@ to quickly create a Cobra application.`,
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	var err error
-	registry, err = loadRegistry()
+	r, err := loadRegistry()
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+	env.fs = fs.NewNativeFS()
+	env.prompter = prompter.NewCLIPrompter()
+	env.registry = r
 	if err = rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}

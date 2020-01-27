@@ -45,10 +45,10 @@ var addCmd = &cobra.Command{
 		if c <= 0 {
 			return fmt.Errorf("no configured generators found in %s\n", path)
 		}
-		if err := registry.AddRepository(repo); err != nil {
+		if err := env.registry.AddRepository(repo); err != nil {
 			return err
 		}
-		if err := saveRegistry(registry); err != nil {
+		if err := saveRegistry(env.registry); err != nil {
 			return err
 		}
 		fmt.Printf("Added %d generator(-s)\nDone.\n", c)

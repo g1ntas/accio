@@ -27,6 +27,10 @@ type GeneratorError struct {
 	Err  error
 }
 
+// OverwriteFn handles files that already exist.
+// Returning true overwrites files, and false - skips them.
+type OverwriteFn func(path string) bool
+
 type model = struct {
 	Body     string
 	Filename string
@@ -97,22 +101,19 @@ func (g *Generator) manifestPath() string {
 }
 
 type Runner struct {
-	fs       Filesystem
-	mp       ModelParser
-	writeDir string // absolute path to the directory to write generated files
-
-	// Confirmation callback to overwrite existing files.
-	// Returning true overwrites files, and false skips them.
-	overwriteFunc func(path string) bool
+	fs        Filesystem
+	mp        ModelParser
+	writeDir  string // absolute path to the directory to write generated files
+	overwrite OverwriteFn
 }
 
 // todo: implement functional options
-func NewRunner(fs Filesystem, mp ModelParser, dir string, overwriteFunc func(path string) bool) *Runner {
+func NewRunner(fs Filesystem, mp ModelParser, dir string, overwrite OverwriteFn) *Runner {
 	return &Runner{
-		fs:            fs,
-		mp:            mp,
-		writeDir:      dir,
-		overwriteFunc: overwriteFunc,
+		fs:        fs,
+		mp:        mp,
+		writeDir:  dir,
+		overwrite: overwrite,
 	}
 }
 
@@ -154,7 +155,7 @@ func (r *Runner) Run(generator *Generator) error {
 			body = []byte(tpl.Body)
 		}
 		// if file exists, call callback to decide if it should be skipped
-		if _, err := r.fs.Stat(target); err == nil && !r.overwriteFunc(target) {
+		if _, err := r.fs.Stat(target); err == nil && !r.overwrite(target) {
 			return nil
 		}
 		err = r.fs.WriteFile(target, body, 0775)

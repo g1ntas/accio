@@ -28,14 +28,19 @@ var nilValidator = func(val string) error {
 
 type Prompt interface {
 	kind() string
+	Help() string
 	Prompt(prompter Prompter) (interface{}, error)
 }
 
 type PromptMap map[string]Prompt
 
 type Base struct {
-	Msg  string
-	Help string
+	Msg      string
+	HelpText string
+}
+
+func (p *Base) Help() string {
+	return p.HelpText
 }
 
 // input
@@ -48,7 +53,7 @@ func (p *input) kind() string {
 }
 
 func (p *input) Prompt(prompter Prompter) (interface{}, error) {
-	return prompter.Get(p.Msg, p.Help, nilValidator)
+	return prompter.Get(p.Msg, p.HelpText, nilValidator)
 }
 
 
@@ -62,7 +67,7 @@ func (p *integer) kind() string {
 }
 
 func (p *integer) Prompt(prompter Prompter) (interface{}, error) {
-	val, err := prompter.Get(p.Msg, p.Help, func(val string) error {
+	val, err := prompter.Get(p.Msg, p.HelpText, func(val string) error {
 		for i, r := range val {
 			if r < '0' || r > '9' || (r == '-' && i != 0) {
 				return errors.New("value is not an integer")
@@ -87,7 +92,7 @@ func (p *confirm) kind() string {
 }
 
 func (p *confirm) Prompt(prompter Prompter) (interface{}, error) {
-	return prompter.Confirm(p.Msg, p.Help)
+	return prompter.Confirm(p.Msg, p.HelpText)
 }
 
 
@@ -102,7 +107,7 @@ func (p *list) kind() string {
 
 func (p *list) Prompt(prompter Prompter) (interface{}, error) {
 	values := make([]string, 0, 5)
-	help := fmt.Sprintf("Return empty value to finish.\n\n%s", p.Help)
+	help := fmt.Sprintf("Return empty value to finish.\n\n%s", p.HelpText)
 	for {
 		val, err := prompter.Get(p.Msg, help, nilValidator)
 		if err != nil {
@@ -126,7 +131,7 @@ func (p *choice) kind() string {
 }
 
 func (p *choice) Prompt(prompter Prompter) (interface{}, error) {
-	return prompter.SelectOne(p.Msg, p.Help, p.options)
+	return prompter.SelectOne(p.Msg, p.HelpText, p.options)
 }
 
 
@@ -141,5 +146,5 @@ func (p *multiChoice) kind() string {
 }
 
 func (p *multiChoice) Prompt(prompter Prompter) (interface{}, error) {
-	return prompter.SelectMultiple(p.Msg, p.Help, p.options)
+	return prompter.SelectMultiple(p.Msg, p.HelpText, p.options)
 }

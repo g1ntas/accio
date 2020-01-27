@@ -27,17 +27,17 @@ func strOfLen(n int) string {
 func promptSignature(p Prompt) string {
 	switch v := p.(type) {
 	case *input:
-		return fmt.Sprintf("%q %q", v.Msg, v.Help)
+		return fmt.Sprintf("%q %q", v.Msg, v.HelpText)
 	case *integer:
-		return fmt.Sprintf("%q %q", v.Msg, v.Help)
+		return fmt.Sprintf("%q %q", v.Msg, v.HelpText)
 	case *confirm:
-		return fmt.Sprintf("%q %q", v.Msg, v.Help)
+		return fmt.Sprintf("%q %q", v.Msg, v.HelpText)
 	case *list:
-		return fmt.Sprintf("%q %q", v.Msg, v.Help)
+		return fmt.Sprintf("%q %q", v.Msg, v.HelpText)
 	case *choice:
-		return fmt.Sprintf("%q %q %v", v.Msg, v.Help, v.options)
+		return fmt.Sprintf("%q %q %v", v.Msg, v.HelpText, v.options)
 	case *multiChoice:
-		return fmt.Sprintf("%q %q %v", v.Msg, v.Help, v.options)
+		return fmt.Sprintf("%q %q %v", v.Msg, v.HelpText, v.options)
 	default:
 		panic(fmt.Sprintf("Unknown Prompt: %s", p.kind()))
 	}
@@ -176,7 +176,7 @@ var configTests = []struct {
 	{
 		"Prompt help",
 		conf{"name": "a", "prompts": conf{"var": conf{"type": "input", "message": "test", "help": "abc"}}},
-		Generator{Name: "a", Prompts: PromptMap{"var": &input{Base{Msg: "test", Help: "abc"}}}},
+		Generator{Name: "a", Prompts: PromptMap{"var": &input{Base{Msg: "test", HelpText: "abc"}}}},
 		noError,
 	},
 	{
