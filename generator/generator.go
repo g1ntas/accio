@@ -14,15 +14,12 @@ const (
 
 type Generator struct {
 	Dest        string
-	Name        string    `toml:"name"`
-	Description string    `toml:"description"`
 	Help        string    `toml:"help"`
 	Prompts     PromptMap `toml:"prompts"`
 }
 
 type GeneratorError struct {
 	Op   string
-	Name string
 	Path string
 	Err  error
 }
@@ -66,7 +63,7 @@ type Filesystem interface {
 }
 
 func (e *GeneratorError) Error() string {
-	return e.Op + " " + e.Name + " at " + e.Path + ": " + e.Err.Error()
+	return e.Op + " at " + e.Path + ": " + e.Err.Error()
 }
 
 func NewGenerator(dir string) *Generator {
@@ -92,7 +89,7 @@ func (g *Generator) wrapErr(operation string, err error) error {
 	if err == nil {
 		return nil
 	}
-	return &GeneratorError{operation, g.Name, g.Dest, err}
+	return &GeneratorError{operation, g.Dest, err}
 
 }
 

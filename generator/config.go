@@ -1,7 +1,6 @@
 package generator
 
 import (
-	"errors"
 	"fmt"
 	"github.com/BurntSushi/toml"
 	"unicode"
@@ -10,9 +9,6 @@ import (
 func (g *Generator) readConfig(b []byte) error {
 	err := toml.Unmarshal(b, &g)
 	if err != nil {
-		return err
-	}
-	if err := g.validate(); err != nil {
 		return err
 	}
 	return nil
@@ -97,44 +93,6 @@ func parsePromptMessage(conf map[string]interface{}, key string) (string, error)
 		return "", fmt.Errorf("prompt message for %q is too long, it must be not longer than 128 characters", key)
 	}
 	return s, nil
-}
-
-func (g *Generator) validate() error {
-	if err := validateName(g.Name); err != nil {
-		return err
-	}
-	if err := validateDescription(g.Description); err != nil {
-		return err
-	}
-	return nil
-}
-
-func validateName(s string) error {
-	if len(s) == 0 {
-		return errors.New("required setting 'name' is missing")
-	}
-	if len(s) > 64 {
-		return errors.New("name can not be longer than 64 characters")
-	}
-	if startsOrEndsWithRune(s, '-') {
-		return errors.New("name can not start or end with '-' character")
-	}
-	if startsOrEndsWithRune(s, ':') {
-		return errors.New("name can not start or end with ':' character")
-	}
-	for _, r := range s {
-		if !isLetter(r) && !isDigit(r) && r != '-' && r != ':' {
-			return fmt.Errorf("name contains invalid character %q", r)
-		}
-	}
-	return nil
-}
-
-func validateDescription(s string) error {
-	if len(s) > 128 {
-		return errors.New("description can not be longer than 64 characters")
-	}
-	return nil
 }
 
 // startsOrEndsWithRune checks whether string starts or ends with a given rune.

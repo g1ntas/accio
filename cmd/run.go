@@ -13,11 +13,11 @@ import (
 // runCmd represents the run command
 var runCmd = &cobra.Command{
 	Use:   "run [generator]",
-	Short: "Run an existing generator from one of the repositories",
+	Short: "Run a generator from given url",
 	Long:  ``,
 	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		gen, err := findGenerator(args[0])
+		gen, err := newGeneratorFromUrl(args[0])
 		if err != nil {
 			return err
 		}
@@ -61,7 +61,7 @@ func generatorHelpFunc(cmd *cobra.Command, args []string) {
 		cmd.Root().HelpFunc()(cmd, args)
 		return
 	}
-	gen, err := findGenerator(args[1])
+	gen, err := newGeneratorFromUrl(args[1])
 	if err != nil {
 		cmd.PrintErrln(err) // todo: refactor to use own print fn
 		if err := cmd.Usage(); err != nil {
@@ -135,22 +135,7 @@ func buildGeneratorHelp(gen *generator.Generator) string {
 	return strings.TrimSpace(help)
 }
 
-func findGenerator(name string) (*generator.Generator, error) {
-	matches := env.registry.FindGenerators(name)
-	switch l := len(matches); {
-	case l == 0:
-		return nil, fmt.Errorf("no generators found matching a name %q", name)
-	case l > 1:
-		fmt.Println("Multiple generators found:") // todo: refactor to use own print fn
-		choices := make([]string, len(matches))
-		for i, g := range matches {
-			choices[i] = fmt.Sprintf("%s: %s", g.Name, g.Description) // todo: refactor to use own print fn
-		}
-		i, err := env.prompter.SelectOneIndex("Select one:", "", choices)
-		if err != nil {
-			return nil, err
-		}
-		return matches[i], nil
-	}
-	return matches[0], nil
+func newGeneratorFromUrl(url string) (*generator.Generator, error) {
+	// todo: create generator by given URL
+	return &generator.Generator{}, nil
 }

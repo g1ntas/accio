@@ -45,12 +45,6 @@ func promptSignature(p Prompt) string {
 
 // generatorsEqual compares two generators
 func generatorsEqual(g1, g2 *Generator) bool {
-	if g1.Name != g2.Name {
-		return false
-	}
-	if g1.Description != g2.Description {
-		return false
-	}
 	if g1.Help != g2.Help {
 		return false
 	}
@@ -71,16 +65,9 @@ func generatorsEqual(g1, g2 *Generator) bool {
 
 // string creates human-readable representation of Generator
 func (g *Generator) string() string {
-	// shorten description if too long
-	var desc string
-	if len(g.Description) > 10 {
-		desc = fmt.Sprintf("%.10s...", g.Description)
-	} else {
-		desc = g.Description
-	}
 	// shorten help if too long
 	var help string
-	if len(g.Description) > 10 {
+	if len(g.Help) > 10 {
 		help = fmt.Sprintf("%.10s...", g.Help)
 	} else {
 		help = g.Help
@@ -92,7 +79,7 @@ func (g *Generator) string() string {
 		prompts[i] = k + ":" + p.kind()
 		i++
 	}
-	return fmt.Sprintf("%q %q %q %v", g.Name, desc, help, prompts)
+	return fmt.Sprintf("%q %v", help, prompts)
 }
 
 var configTests = []struct {
@@ -101,22 +88,8 @@ var configTests = []struct {
 	gen   Generator
 	ok    bool
 }{
-	// name
-	{"valid name", conf{"name": "parse:test-command"}, Generator{Name: "parse:test-command"}, noError},
-	{"name contains invalid characters", conf{"name": "."}, emptyGen, hasError},
-	{"name starts with dash", conf{"name": "-a"}, emptyGen, hasError},
-	{"name ends with dash", conf{"name": "a-"}, emptyGen, hasError},
-	{"name starts with colon", conf{"name": ":a"}, emptyGen, hasError},
-	{"name ends with colon", conf{"name": "a:"}, emptyGen, hasError},
-	{"name longer than 64 characters", conf{"name": strOfLen(65)}, emptyGen, hasError},
-	{"empty name", conf{"name": ""}, emptyGen, hasError},
-
-	// description
-	{"valid description", conf{"name": "a", "description": "abc"}, Generator{Name: "a", Description: "abc"}, noError},
-	{"description longer than 128 characters", conf{"name": "a", "description": strOfLen(129)}, emptyGen, hasError},
-
 	// help
-	{"help", conf{"name": "a", "help": "abc"}, Generator{Name: "a", Help: "abc"}, noError},
+	{"help", conf{"name": "a", "help": "abc"}, Generator{Help: "abc"}, noError},
 
 	// prompts
 	{
@@ -152,7 +125,7 @@ var configTests = []struct {
 	{
 		"Prompt with valid var name",
 		conf{"name": "a", "prompts": conf{"_Var_1": conf{"type": "input", "message": "test"}}},
-		Generator{Name: "a", Prompts: PromptMap{"_Var_1": &input{Base{Msg: "test"}}}},
+		Generator{Prompts: PromptMap{"_Var_1": &input{Base{Msg: "test"}}}},
 		noError,
 	},
 	{
@@ -170,31 +143,31 @@ var configTests = []struct {
 	{
 		"Prompt type input",
 		conf{"name": "a", "prompts": conf{"var": conf{"type": "input", "message": "test"}}},
-		Generator{Name: "a", Prompts: PromptMap{"var": &input{Base{Msg: "test"}}}},
+		Generator{Prompts: PromptMap{"var": &input{Base{Msg: "test"}}}},
 		noError,
 	},
 	{
 		"Prompt help",
 		conf{"name": "a", "prompts": conf{"var": conf{"type": "input", "message": "test", "help": "abc"}}},
-		Generator{Name: "a", Prompts: PromptMap{"var": &input{Base{Msg: "test", HelpText: "abc"}}}},
+		Generator{Prompts: PromptMap{"var": &input{Base{Msg: "test", HelpText: "abc"}}}},
 		noError,
 	},
 	{
 		"Prompt type integer",
 		conf{"name": "a", "prompts": conf{"var": conf{"type": "input", "message": "test"}}},
-		Generator{Name: "a", Prompts: PromptMap{"var": &integer{Base{Msg: "test"}}}},
+		Generator{Prompts: PromptMap{"var": &integer{Base{Msg: "test"}}}},
 		noError,
 	},
 	{
 		"Prompt type confirm",
 		conf{"name": "a", "prompts": conf{"var": conf{"type": "input", "message": "test"}}},
-		Generator{Name: "a", Prompts: PromptMap{"var": &confirm{Base{Msg: "test"}}}},
+		Generator{Prompts: PromptMap{"var": &confirm{Base{Msg: "test"}}}},
 		noError,
 	},
 	{
 		"Prompt type list",
 		conf{"name": "a", "prompts": conf{"var": conf{"type": "list", "message": "test"}}},
-		Generator{Name: "a", Prompts: PromptMap{"var": &confirm{Base{Msg: "test"}}}},
+		Generator{Prompts: PromptMap{"var": &confirm{Base{Msg: "test"}}}},
 		noError,
 	},
 	{
@@ -204,7 +177,7 @@ var configTests = []struct {
 			"options": []string{"a", "b"},
 			"message": "test",
 		}}},
-		Generator{Name: "a", Prompts: PromptMap{"var":
+		Generator{Prompts: PromptMap{"var":
 		&choice{
 			Base{Msg: "test"},
 			[]string{"a", "b"},
@@ -228,7 +201,7 @@ var configTests = []struct {
 			"options": []string{"a", "b"},
 			"message": "test",
 		}}},
-		Generator{Name: "a", Prompts: PromptMap{"var":
+		Generator{Prompts: PromptMap{"var":
 		&multiChoice{
 			Base{Msg: "test"},
 			[]string{"a", "b"},
