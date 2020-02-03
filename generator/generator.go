@@ -13,9 +13,9 @@ const (
 )
 
 type Generator struct {
-	Dest        string
-	Help        string    `toml:"help"`
-	Prompts     PromptMap `toml:"prompts"`
+	Dest    string
+	Help    string    `toml:"help"`
+	Prompts PromptMap `toml:"prompts"`
 }
 
 type GeneratorError struct {
@@ -27,6 +27,10 @@ type GeneratorError struct {
 // OverwriteFn handles files that already exist.
 // Returning true overwrites files, and false - skips them.
 type OverwriteFn func(path string) bool
+
+var defaultOverwriteFn = func(path string) bool {
+	return false
+}
 
 type model = struct {
 	Body     string
@@ -60,6 +64,30 @@ type Filesystem interface {
 	Walker
 	Writer
 	Stat(name string) (os.FileInfo, error)
+}
+
+// relFile represents file relative to generator's root directory.
+type relFile struct {
+	relpath string
+	kind    os.FileMode
+}
+
+func IgnoreFile(p string) func(r *Runner) {
+	return func(r *Runner) {
+		r.ignore = append(r.ignore, &relFile{p, os.ModePerm})
+	}
+}
+
+func IgnoreDir(p string) func(r *Runner) {
+	return func(r *Runner) {
+		r.ignore = append(r.ignore, &relFile{p, os.ModeDir})
+	}
+}
+
+func OnFileExists(fn OverwriteFn) func(r *Runner) {
+	return func(r *Runner) {
+		r.overwrite = fn
+	}
 }
 
 func (e *GeneratorError) Error() string {
@@ -102,16 +130,21 @@ type Runner struct {
 	mp        ModelParser
 	writeDir  string // absolute path to the directory to write generated files
 	overwrite OverwriteFn
+	ignore    []*relFile // collection of files to ignore during run
 }
 
-// todo: implement functional options
-func NewRunner(fs Filesystem, mp ModelParser, dir string, overwrite OverwriteFn) *Runner {
-	return &Runner{
+func NewRunner(fs Filesystem, mp ModelParser, dir string, options ...func(*Runner)) *Runner {
+	r := &Runner{
 		fs:        fs,
 		mp:        mp,
 		writeDir:  dir,
-		overwrite: overwrite,
+		overwrite: defaultOverwriteFn,
 	}
+	IgnoreFile(manifestFilename)(r)
+	for _, option := range options {
+		option(r)
+	}
+	return r
 }
 
 func (r *Runner) Run(generator *Generator) error {
@@ -119,15 +152,26 @@ func (r *Runner) Run(generator *Generator) error {
 		if err != nil {
 			return err
 		}
-		// ignore non-files and manifest
-		if !info.Mode().IsRegular() || abspath == generator.manifestPath() {
-			return nil
-		}
-		body, err := r.fs.ReadFile(abspath)
+		relpath, err := filepath.Rel(generator.Dest, abspath)
 		if err != nil {
 			return err
 		}
-		relpath, err := filepath.Rel(generator.Dest, abspath)
+		// skip specified files and directories
+		for _, f := range r.ignore {
+			switch {
+			case relpath != f.relpath:
+				continue
+			case info.Mode().IsDir() && f.kind.IsDir():
+				return filepath.SkipDir
+			case info.Mode().IsRegular() && f.kind.IsRegular():
+				return nil
+			}
+		}
+		// skip non-files
+		if !info.Mode().IsRegular() {
+			return nil
+		}
+		body, err := r.fs.ReadFile(abspath)
 		if err != nil {
 			return err
 		}

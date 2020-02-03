@@ -1,13 +1,23 @@
 package cmd
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"github.com/g1ntas/accio/fs"
 	"github.com/g1ntas/accio/generator"
 	"github.com/g1ntas/accio/generator/model"
+	"github.com/hashicorp/go-getter"
+	"github.com/hashicorp/go-getter/helper/url"
+	"github.com/hashicorp/go-safetemp"
 	"github.com/spf13/cobra"
+	"io"
+	"log"
 	"os"
+	"os/signal"
+	"path/filepath"
 	"strings"
+	"sync"
 )
 
 // runCmd represents the run command
@@ -17,11 +27,21 @@ var runCmd = &cobra.Command{
 	Long:  ``,
 	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		gen, err := newGeneratorFromUrl(args[0])
+		dst, closer, err := safetemp.Dir("", "accio")
 		if err != nil {
 			return err
 		}
-		writeDir, err := getWorkingDir(cmd)
+		dst = filepath.Join(dst, "tmp") // work around for https://github.com/hashicorp/go-getter/issues/114
+		defer Close(closer)
+		gen, err := fetchGeneratorFromUrl(args[0], dst)
+		if err != nil {
+			return err
+		}
+		err = gen.ReadConfig(env.fs)
+		if err != nil {
+			return err
+		}
+		writeDir, err := workingDir(cmd)
 		if err != nil {
 			return err
 		}
@@ -34,10 +54,11 @@ var runCmd = &cobra.Command{
 			return err
 		}
 		runner := generator.NewRunner(
-			getFilesystem(cmd),
+			filesystem(cmd),
 			parser,
 			writeDir,
-			getOverwriteHandler(cmd),
+			generator.OnFileExists(overwriteHandler(cmd)),
+			generator.IgnoreDir(".git"),
 		)
 		err = runner.Run(gen)
 		if err != nil {
@@ -54,6 +75,31 @@ func init() {
 	runCmd.Flags().BoolP("help", "h", false, "Show help")
 	runCmd.Flags().StringP("working-dir", "w", "", "Specify working directory")
 	rootCmd.AddCommand(runCmd)
+
+	getter.Detectors = []getter.Detector{
+		new(getter.GitHubDetector),
+		new(getter.GitDetector),
+		new(getter.BitBucketDetector),
+		new(getter.FileDetector),
+	}
+
+	httpGetter := &getter.HttpGetter{
+		Netrc: true,
+	}
+
+	getter.Getters = map[string]getter.Getter{
+		"file":  new(getter.FileGetter),
+		"git":   new(getter.GitGetter),
+		"hg":    new(getter.HgGetter),
+		"http":  httpGetter,
+		"https": httpGetter,
+	}
+}
+
+func Close(c io.Closer) {
+	if err := c.Close(); err != nil {
+		log.Fatal(err)
+	}
 }
 
 func generatorHelpFunc(cmd *cobra.Command, args []string) {
@@ -61,7 +107,7 @@ func generatorHelpFunc(cmd *cobra.Command, args []string) {
 		cmd.Root().HelpFunc()(cmd, args)
 		return
 	}
-	gen, err := newGeneratorFromUrl(args[1])
+	gen, err := fetchGeneratorFromUrl(args[1], "")
 	if err != nil {
 		cmd.PrintErrln(err) // todo: refactor to use own print fn
 		if err := cmd.Usage(); err != nil {
@@ -69,9 +115,11 @@ func generatorHelpFunc(cmd *cobra.Command, args []string) {
 		}
 		return
 	}
+
+	// todo: remove use and short description
 	helpCmd := &cobra.Command{
-		Use:   gen.Name,
-		Short: gen.Description,
+		Use:   "gen.Name",
+		Short: "gen.Description",
 		Long:  buildGeneratorHelp(gen),
 		Run:   func(cmd *cobra.Command, args []string) {},
 	}
@@ -81,14 +129,14 @@ func generatorHelpFunc(cmd *cobra.Command, args []string) {
 	helpCmd.HelpFunc()(helpCmd, args)
 }
 
-func getFilesystem(cmd *cobra.Command) fs.Filesystem {
+func filesystem(cmd *cobra.Command) fs.Filesystem {
 	if cmd.Flag("dry").Value.String() == "true" {
 		return fs.NewDryFS(env.fs)
 	}
 	return env.fs
 }
 
-func getOverwriteHandler(cmd *cobra.Command) generator.OverwriteFn {
+func overwriteHandler(cmd *cobra.Command) generator.OverwriteFn {
 	force := cmd.Flag("force").Value.String() == "true"
 	return func(path string) bool {
 		if force {
@@ -104,7 +152,7 @@ func getOverwriteHandler(cmd *cobra.Command) generator.OverwriteFn {
 	}
 }
 
-func getWorkingDir(cmd *cobra.Command) (string, error) {
+func workingDir(cmd *cobra.Command) (string, error) {
 	dir := cmd.Flag("working-dir").Value.String()
 	if dir != "" {
 		return dir, nil
@@ -135,7 +183,75 @@ func buildGeneratorHelp(gen *generator.Generator) string {
 	return strings.TrimSpace(help)
 }
 
-func newGeneratorFromUrl(url string) (*generator.Generator, error) {
-	// todo: create generator by given URL
-	return &generator.Generator{}, nil
+func fetchGeneratorFromUrl(src, dst string) (*generator.Generator, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+	abspath, isFile, err := parseFilePath(src, cwd)
+	if err != nil {
+		return nil, err
+	}
+	if isFile {
+		if _, err = env.fs.Stat(abspath); err != nil {
+			return nil, err
+		}
+		return generator.NewGenerator(abspath), nil
+	}
+	gen := generator.NewGenerator(dst)
+	ctx, cancel := context.WithCancel(context.Background())
+	client := &getter.Client{
+		Ctx:     ctx,
+		Src:     src,
+		Dst:     dst,
+		Pwd:     cwd,
+		Mode:    getter.ClientModeDir,
+		Options: []getter.ClientOption{},
+	}
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	errChan := make(chan error, 2)
+	go func() {
+		defer wg.Done()
+		defer cancel()
+		if err := client.Get(); err != nil {
+			errChan <- err
+		}
+	}()
+	c := make(chan os.Signal)
+	signal.Notify(c, os.Interrupt)
+	select {
+	case sig := <-c:
+		signal.Reset(os.Interrupt)
+		cancel()
+		wg.Wait()
+		return nil, errors.New(sig.String())
+	case <-ctx.Done():
+		wg.Wait()
+	case err := <-errChan:
+		wg.Wait()
+		return nil, err
+	}
+	return gen, nil
+}
+
+// parseFilePath returns absolute path of the given filepath.
+// If filepath is relative path, it will be expanded where
+// base path is considered second argument 'pwd'. If given
+// path isn't correct filepath, second return parameter
+// will be returned as false.
+func parseFilePath(p, pwd string) (string, bool, error) {
+	d := getter.FileDetector{}
+	p, isFile, err := d.Detect(p, pwd)
+	if err != nil {
+		return "", false, err
+	}
+	if !isFile {
+		return "", false, nil
+	}
+	u, err := url.Parse(p)
+	if err != nil {
+		return "", false, err
+	}
+	return u.Path, true, nil
 }

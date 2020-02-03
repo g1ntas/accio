@@ -6,8 +6,12 @@ import (
 	"unicode"
 )
 
-func (g *Generator) readConfig(b []byte) error {
-	err := toml.Unmarshal(b, &g)
+func (g *Generator) ReadConfig(r Reader) error {
+	b, err := r.ReadFile(g.manifestPath())
+	if err != nil {
+		return err
+	}
+	err = toml.Unmarshal(b, &g)
 	if err != nil {
 		return err
 	}
