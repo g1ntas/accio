@@ -145,7 +145,9 @@ const (
 
 var runnerTests = []struct {
 	name         string
-	input        tree // initial FS structure
+	// initial FS structure, where everything
+	// inside `./generator` directory is considered generator source
+	input        tree
 	output       tree // new files that were created during the test
 	skipExisting bool
 }{
@@ -230,9 +232,10 @@ func TestRunner(t *testing.T) {
 	gen := &Generator{Dest: "generator"}
 	for _, test := range runnerTests {
 		fs := &fsMock{test.input, tree{}}
-		runner := NewRunner(fs, &modelParserMock{}, "output", func(p string) bool {
+		runner := NewRunner(fs, &modelParserMock{}, "output")
+		runner.overwrite = func(p string) bool {
 			return !test.skipExisting
-		})
+		}
 		err := runner.Run(gen)
 		switch {
 		case err != nil:

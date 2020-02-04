@@ -220,6 +220,14 @@ var configTests = []struct {
 	},
 }
 
+type mockReader struct {
+	content []byte
+}
+
+func (r *mockReader) ReadFile(_ string) ([]byte, error) {
+	return r.content, nil
+}
+
 func TestConfigReading(t *testing.T) {
 	for _, test := range configTests {
 		buf := new(bytes.Buffer)
@@ -228,7 +236,7 @@ func TestConfigReading(t *testing.T) {
 			return
 		}
 		gen := &Generator{Prompts: make(PromptMap)}
-		err := gen.readConfig([]byte(buf.String()))
+		err := gen.ReadConfig(&mockReader{buf.Bytes()})
 		switch {
 		case err == nil && !test.ok:
 			t.Errorf("%s: expected error; got none", test.name)
