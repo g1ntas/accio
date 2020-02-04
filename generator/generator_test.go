@@ -101,14 +101,14 @@ func (fs *fsMock) Stat(name string) (os.FileInfo, error) {
 	return nil, os.ErrNotExist
 }
 
-// modelParserMock represents ModelParser implementation
-type modelParserMock struct{}
+// blueprintBlueprintMock represents BlueprintParser implementation
+type blueprintParserMock struct{}
 
-var _ ModelParser = (*modelParserMock)(nil)
+var _ BlueprintParser = (*blueprintParserMock)(nil)
 
-// Parse decodes json into Model
-func (e *modelParserMock) Parse(b []byte) (*model, error) {
-	tpl := &model{}
+// Parse decodes json into Blueprint
+func (e *blueprintParserMock) Parse(b []byte) (*blueprint, error) {
+	tpl := &blueprint{}
 	err := json.Unmarshal(b, tpl)
 	if err != nil {
 		return nil, err
@@ -179,37 +179,37 @@ var runnerTests = []struct {
 		skipExisting,
 	},
 	{
-		"write model file",
+		"write blueprint file",
 		tree{file("generator/test.txt.accio", `{"body": "test"}`)},
 		tree{file("output/test.txt", "test")},
 		skipExisting,
 	},
 	{
-		"model | skip file",
+		"blueprint | skip file",
 		tree{file("generator/test.txt.accio", `{"skip": true}`)},
 		tree{},
 		skipExisting,
 	},
 	{
-		"model | custom filename",
+		"blueprint | custom filename",
 		tree{file("generator/test.txt.accio", `{"filename": "custom.txt", "body": "---"}`)},
 		tree{file("output/custom.txt", "---")},
 		skipExisting,
 	},
 	{
-		"model | nested custom filename",
+		"blueprint | nested custom filename",
 		tree{file("generator/test.txt.accio", `{"filename": "dir/custom.txt"}`)},
 		tree{file("output/dir/custom.txt", "")},
 		skipExisting,
 	},
 	{
-		"model | append static name if filename is directory",
+		"blueprint | append static name if filename is directory",
 		tree{dir("output/abc"), file("generator/test.txt.accio", `{"filename": "abc"}`)},
 		tree{file("output/abc/test.txt", "")},
 		skipExisting,
 	},
 	{
-		"model | don't write outside root",
+		"blueprint | don't write outside root",
 		tree{file("generator/test.txt.accio", `{"filename": "../../../custom.txt"}`)},
 		tree{file("output/custom.txt", "")},
 		skipExisting,
@@ -232,7 +232,7 @@ func TestRunner(t *testing.T) {
 	gen := &Generator{Dest: "generator"}
 	for _, test := range runnerTests {
 		fs := &fsMock{test.input, tree{}}
-		runner := NewRunner(fs, &modelParserMock{}, "output")
+		runner := NewRunner(fs, &blueprintParserMock{}, "output")
 		runner.overwrite = func(p string) bool {
 			return !test.skipExisting
 		}

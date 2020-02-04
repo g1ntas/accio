@@ -32,14 +32,14 @@ var defaultOverwriteFn = func(path string) bool {
 	return false
 }
 
-type model = struct {
+type blueprint = struct {
 	Body     string
 	Filename string
 	Skip     bool
 }
 
-type ModelParser interface {
-	Parse(b []byte) (*model, error)
+type BlueprintParser interface {
+	Parse(b []byte) (*blueprint, error)
 }
 
 type Writer interface {
@@ -127,13 +127,13 @@ func (g *Generator) manifestPath() string {
 
 type Runner struct {
 	fs        Filesystem
-	mp        ModelParser
+	mp        BlueprintParser
 	writeDir  string // absolute path to the directory to write generated files
 	overwrite OverwriteFn
 	ignore    []*relFile // collection of files to ignore during run
 }
 
-func NewRunner(fs Filesystem, mp ModelParser, dir string, options ...func(*Runner)) *Runner {
+func NewRunner(fs Filesystem, mp BlueprintParser, dir string, options ...func(*Runner)) *Runner {
 	r := &Runner{
 		fs:        fs,
 		mp:        mp,

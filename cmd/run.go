@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"github.com/g1ntas/accio/fs"
 	"github.com/g1ntas/accio/generator"
-	"github.com/g1ntas/accio/generator/model"
+	"github.com/g1ntas/accio/generator/blueprint"
 	"github.com/hashicorp/go-getter"
 	"github.com/hashicorp/go-getter/helper/url"
 	"github.com/hashicorp/go-safetemp"
@@ -49,7 +49,7 @@ var runCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		parser, err := model.NewParser(data)
+		parser, err := blueprint.NewParser(data)
 		if err != nil {
 			return err
 		}

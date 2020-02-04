@@ -1,4 +1,4 @@
-package model
+package blueprint
 
 import (
 	"fmt"
@@ -139,15 +139,15 @@ func NewParser(d map[string]interface{}) (*Parser, error) {
 	return &Parser{ctx: ctx}, nil
 }
 
-// model is an alias for an anonymous struct used in
-// generator.ModelParser interface.
-type model = struct {
+// blueprint is an alias for an anonymous struct used in
+// generator.BlueprintParser interface.
+type blueprint = struct {
 	Body     string
 	Filename string
 	Skip     bool
 }
 
-func (p *Parser) Parse(b []byte) (*model, error) {
+func (p *Parser) Parse(b []byte) (*blueprint, error) {
 	parser, err := markup.Parse(string(b), "", "")
 	if err != nil {
 		return nil, err
@@ -156,9 +156,9 @@ func (p *Parser) Parse(b []byte) (*model, error) {
 	return parse(parser, &ctx)
 }
 
-func parse(p *markup.Parser, ctx *context) (*model, error) {
+func parse(p *markup.Parser, ctx *context) (*blueprint, error) {
 	var err error
-	mod := &model{}
+	mod := &blueprint{}
 	for _, tag := range orderTags(p.Tags) {
 		switch tag.Name {
 		case tagVariable:
