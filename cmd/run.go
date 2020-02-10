@@ -12,7 +12,6 @@ import (
 	"github.com/hashicorp/go-safetemp"
 	"github.com/spf13/cobra"
 	"io"
-	"log"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -57,7 +56,8 @@ var runCmd = &cobra.Command{
 			filesystem(cmd),
 			parser,
 			writeDir,
-			generator.OnFileExists(overwriteHandler(cmd)),
+			generator.OnFileExists(existingFileHandler(cmd)),
+			generator.OnError(errorHandler(cmd)),
 			generator.IgnoreDir(".git"),
 		)
 		err = runner.Run(gen)
@@ -73,6 +73,7 @@ func init() {
 	runCmd.Flags().Bool("dry", false, "Run without writing to filesystem")
 	runCmd.Flags().BoolP("force", "f", false, "Overwrite existing paths without asking confirmation")
 	runCmd.Flags().BoolP("help", "h", false, "Show help")
+	runCmd.Flags().BoolP("ignore-errors", "i", false, "Ignore errors for files being generated")
 	runCmd.Flags().StringP("working-dir", "w", "", "Specify working directory")
 	rootCmd.AddCommand(runCmd)
 
@@ -98,7 +99,8 @@ func init() {
 
 func Close(c io.Closer) {
 	if err := c.Close(); err != nil {
-		log.Fatal(err)
+		printErr(err)
+		os.Exit(1)
 	}
 }
 
@@ -136,7 +138,7 @@ func filesystem(cmd *cobra.Command) fs.Filesystem {
 	return env.fs
 }
 
-func overwriteHandler(cmd *cobra.Command) generator.OverwriteFn {
+func existingFileHandler(cmd *cobra.Command) generator.OnExistsFn {
 	force := cmd.Flag("force").Value.String() == "true"
 	return func(path string) bool {
 		if force {
@@ -149,6 +151,16 @@ func overwriteHandler(cmd *cobra.Command) generator.OverwriteFn {
 			return false
 		}
 		return overwrite
+	}
+}
+
+func errorHandler(cmd *cobra.Command) generator.OnErrorFn {
+	ignoreErr := cmd.Flag("ignore-errors").Value.String() == "true"
+	return func(err error) bool {
+		if ignoreErr {
+			printErr(fmt.Errorf("%w. Skipping...", err))
+		}
+		return ignoreErr
 	}
 }
 

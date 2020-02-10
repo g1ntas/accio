@@ -1,6 +1,7 @@
 package generator
 
 import (
+	"fmt"
 	"os"
 	"path"
 	"path/filepath"
@@ -18,19 +19,14 @@ type Generator struct {
 	Prompts PromptMap `toml:"prompts"`
 }
 
-type GeneratorError struct {
-	Op   string
-	Path string
-	Err  error
-}
+// OnExistsFn handles files that already exist at target path.
+// Return true to overwrite file or false to skip it.
+type OnExistsFn func(path string) bool
 
-// OverwriteFn handles files that already exist.
-// Returning true overwrites files, and false - skips them.
-type OverwriteFn func(path string) bool
-
-var defaultOverwriteFn = func(path string) bool {
-	return false
-}
+// OnErrorFn is called if error occurred when processing file.
+// Return true to skip the file and continue process, or false
+// to terminate Runner and return the error.
+type OnErrorFn func(err error) bool
 
 type blueprint = struct {
 	Body     string
@@ -72,6 +68,19 @@ type relFile struct {
 	kind    os.FileMode
 }
 
+type RunError struct {
+	Err error
+	Path string
+}
+
+func (e *RunError) Error() string  {
+	return fmt.Sprintf("generating %s: %s", e.Path, e.Err.Error())
+}
+
+func (e *RunError) Unwrap() error  {
+	return e.Err
+}
+
 func IgnoreFile(p string) func(r *Runner) {
 	return func(r *Runner) {
 		r.ignore = append(r.ignore, &relFile{p, os.ModePerm})
@@ -84,14 +93,16 @@ func IgnoreDir(p string) func(r *Runner) {
 	}
 }
 
-func OnFileExists(fn OverwriteFn) func(r *Runner) {
+func OnFileExists(fn OnExistsFn) func(r *Runner) {
 	return func(r *Runner) {
-		r.overwrite = fn
+		r.onExists = fn
 	}
 }
 
-func (e *GeneratorError) Error() string {
-	return e.Op + " at " + e.Path + ": " + e.Err.Error()
+func OnError(fn OnErrorFn) func(r *Runner) {
+	return func(r *Runner) {
+		r.onError = fn
+	}
 }
 
 func NewGenerator(dir string) *Generator {
@@ -113,32 +124,30 @@ func (g *Generator) PromptAll(prompter Prompter) (map[string]interface{}, error)
 	return data, nil
 }
 
-func (g *Generator) wrapErr(operation string, err error) error {
-	if err == nil {
-		return nil
-	}
-	return &GeneratorError{operation, g.Dest, err}
-
-}
-
 func (g *Generator) manifestPath() string {
 	return path.Join(g.Dest, manifestFilename)
 }
 
 type Runner struct {
-	fs        Filesystem
-	mp        BlueprintParser
-	writeDir  string // absolute path to the directory to write generated files
-	overwrite OverwriteFn
-	ignore    []*relFile // collection of files to ignore during run
+	fs       Filesystem
+	mp       BlueprintParser
+	writeDir string // absolute path to the directory to write generated files
+	onExists OnExistsFn
+	onError  OnErrorFn
+	ignore   []*relFile // collection of files to ignore during run
 }
 
 func NewRunner(fs Filesystem, mp BlueprintParser, dir string, options ...func(*Runner)) *Runner {
 	r := &Runner{
-		fs:        fs,
-		mp:        mp,
-		writeDir:  dir,
-		overwrite: defaultOverwriteFn,
+		fs:       fs,
+		mp:       mp,
+		writeDir: dir,
+		onExists: func(path string) bool {
+			return false
+		},
+		onError: func(err error) bool {
+			return false
+		},
 	}
 	IgnoreFile(manifestFilename)(r)
 	for _, option := range options {
@@ -150,11 +159,11 @@ func NewRunner(fs Filesystem, mp BlueprintParser, dir string, options ...func(*R
 func (r *Runner) Run(generator *Generator) error {
 	return r.fs.Walk(generator.Dest, func(abspath string, info os.FileInfo, err error) error {
 		if err != nil {
-			return err
+			return r.handleError(err, abspath)
 		}
 		relpath, err := filepath.Rel(generator.Dest, abspath)
 		if err != nil {
-			return err
+			return r.handleError(err, abspath)
 		}
 		// skip specified files and directories
 		for _, f := range r.ignore {
@@ -173,7 +182,7 @@ func (r *Runner) Run(generator *Generator) error {
 		}
 		body, err := r.fs.ReadFile(abspath)
 		if err != nil {
-			return err
+			return r.handleError(err, abspath)
 		}
 		target := filepath.Join(r.writeDir, relpath)
 		if hasTemplateExtension(target) {
@@ -181,7 +190,7 @@ func (r *Runner) Run(generator *Generator) error {
 			tpl, err := r.mp.Parse(body)
 			switch {
 			case err != nil:
-				return err
+				return r.handleError(err, abspath)
 			case tpl.Skip:
 				return nil
 			case tpl.Filename != "":
@@ -196,15 +205,23 @@ func (r *Runner) Run(generator *Generator) error {
 			body = []byte(tpl.Body)
 		}
 		// if file exists, call callback to decide if it should be skipped
-		if _, err := r.fs.Stat(target); err == nil && !r.overwrite(target) {
+		if _, err := r.fs.Stat(target); err == nil && !r.onExists(target) {
 			return nil
 		}
 		err = r.fs.WriteFile(target, body, 0775)
 		if err != nil {
-			return err
+			return r.handleError(err, abspath)
 		}
 		return nil
 	})
+}
+
+func (r *Runner) handleError(err error, path string) error {
+	err = &RunError{err, path}
+	if r.onError(err) {
+		return nil
+	}
+	return err
 }
 
 func hasTemplateExtension(path string) bool {

@@ -233,7 +233,7 @@ func TestRunner(t *testing.T) {
 	for _, test := range runnerTests {
 		fs := &fsMock{test.input, tree{}}
 		runner := NewRunner(fs, &blueprintParserMock{}, "output")
-		runner.overwrite = func(p string) bool {
+		runner.onExists = func(p string) bool {
 			return !test.skipExisting
 		}
 		err := runner.Run(gen)

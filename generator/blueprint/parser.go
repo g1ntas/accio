@@ -98,7 +98,7 @@ type ParseError struct {
 	Line     int
 }
 
-func (err ParseError) Error() string {
+func (err *ParseError) Error() string {
 	return fmt.Sprintf("failed to parse tag %q on line %d: %s", err.Tag, err.Line, err.Msg)
 }
 
@@ -300,7 +300,7 @@ func isEmpty(s string) bool {
 // Mustache error is returned in format `line %d: %s` and is
 // implemented in github.com/cbroglie/mustache/mustache.go:171.
 // In case given error doesn't contain line in expected format,
-// then original error message and line number 0 is returned.
+// then original error message and line 0 is returned.
 func splitMustacheError(err error) (string, int) {
 	msg := err.Error()
 	if msg[:5] != "line " {
@@ -311,7 +311,7 @@ func splitMustacheError(err error) (string, int) {
 	if err != nil {
 		return msg, 0
 	}
-	msg = msg[i+2:] // remove colon, and space going after it
+	msg = msg[i+2:] // remove colon and space following it
 	return msg, line
 }
 

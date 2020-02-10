@@ -114,7 +114,6 @@ func parseTemplate(p *Parser) parseStateFn {
 	}
 }
 
-// parseTag todo
 func parseTag(p *Parser) parseStateFn {
 	p.tag = &TagNode{Name: p.token.val, Line: p.token.line}
 	p.tag.Attributes = make(map[string]*AttrNode)
