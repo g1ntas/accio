@@ -77,24 +77,8 @@ func init() {
 	runCmd.Flags().StringP("working-dir", "w", "", "Specify working directory")
 	rootCmd.AddCommand(runCmd)
 
-	getter.Detectors = []getter.Detector{
-		new(getter.GitHubDetector),
-		new(getter.GitDetector),
-		new(getter.BitBucketDetector),
-		new(getter.FileDetector),
-	}
-
-	httpGetter := &getter.HttpGetter{
-		Netrc: true,
-	}
-
-	getter.Getters = map[string]getter.Getter{
-		"file":  new(getter.FileGetter),
-		"git":   new(getter.GitGetter),
-		"hg":    new(getter.HgGetter),
-		"http":  httpGetter,
-		"https": httpGetter,
-	}
+	getter.Detectors = []getter.Detector{}
+	getter.Getters = map[string]getter.Getter{}
 }
 
 func Close(c io.Closer) {
@@ -212,6 +196,13 @@ func fetchGeneratorFromUrl(src, dst string) (*generator.Generator, error) {
 	}
 	gen := generator.NewGenerator(dst)
 	ctx, cancel := context.WithCancel(context.Background())
+	getter.Detectors = []getter.Detector{
+		new(getter.GitHubDetector),
+		new(getter.GitDetector),
+		new(getter.BitBucketDetector),
+		new(getter.FileDetector),
+	}
+	httpGetter := &getter.HttpGetter{Netrc: true,}
 	client := &getter.Client{
 		Ctx:     ctx,
 		Src:     src,
@@ -219,6 +210,19 @@ func fetchGeneratorFromUrl(src, dst string) (*generator.Generator, error) {
 		Pwd:     cwd,
 		Mode:    getter.ClientModeDir,
 		Options: []getter.ClientOption{},
+		Detectors: []getter.Detector{
+			new(getter.GitHubDetector),
+			new(getter.GitDetector),
+			new(getter.BitBucketDetector),
+			new(getter.FileDetector),
+		},
+		Getters: map[string]getter.Getter{
+			"file":  new(getter.FileGetter),
+			"git":   new(getter.GitGetter),
+			"hg":    new(getter.HgGetter),
+			"http":  httpGetter,
+			"https": httpGetter,
+		},
 	}
 	wg := sync.WaitGroup{}
 	wg.Add(1)
