@@ -5,6 +5,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -114,12 +115,19 @@ func NewGenerator(dir string) *Generator {
 
 func (g *Generator) PromptAll(prompter Prompter) (map[string]interface{}, error) {
 	data := make(map[string]interface{})
-	for key, p := range g.Prompts {
-		val, err := p.Prompt(prompter)
+	// sort prompts by keys, so they always appear in the same order
+	keys, i := make([]string, len(g.Prompts)), 0
+	for k, _ := range g.Prompts {
+		keys[i] = k
+		i++
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		val, err := g.Prompts[k].Prompt(prompter)
 		if err != nil {
 			return map[string]interface{}{}, err
 		}
-		data[key] = val
+		data[k] = val
 	}
 	return data, nil
 }
