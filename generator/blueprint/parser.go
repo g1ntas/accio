@@ -20,16 +20,6 @@ const (
 	attrName    = "name"
 )
 
-// tagsPriority defines order in which tags should be parsed,
-// lower number means higher priority.
-var tagsPriority = map[string]uint{
-	tagVariable: 0,
-	tagFilename: 1,
-	tagSkip:     1,
-	tagPartial:  1,
-	tagTemplate: 2,
-}
-
 // context carries data to be used in starlark scripts and mustache templates.
 type context struct {
 	vars     map[string]starlark.Value
@@ -159,7 +149,7 @@ func (p *Parser) Parse(b []byte) (*blueprint, error) {
 func parse(p *markup.Parser, ctx *context) (*blueprint, error) {
 	var err error
 	mod := &blueprint{}
-	for _, tag := range orderTags(p.Tags) {
+	for _, tag := range p.Tags {
 		switch tag.Name {
 		case tagVariable:
 			err = parseVariable(tag, ctx)
@@ -189,20 +179,6 @@ func parse(p *markup.Parser, ctx *context) (*blueprint, error) {
 		}
 	}
 	return mod, nil
-}
-
-// orderTags sorts tag nodes in their parse order.
-// Implements bubble sort algorithm.
-func orderTags(tags []*markup.TagNode) []*markup.TagNode {
-	n := len(tags)
-	for i := 0; i < n-1; i++ {
-		for j := 0; j < n-i-1; j++ {
-			if tagsPriority[tags[j].Name] > tagsPriority[tags[j+1].Name] {
-				tags[j], tags[j+1] = tags[j+1], tags[j]
-			}
-		}
-	}
-	return tags
 }
 
 func parseVariable(tag *markup.TagNode, ctx *context) error {
