@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/g1ntas/accio/fs"
 	"github.com/g1ntas/accio/prompter"
+	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	"os"
 )
@@ -11,7 +11,7 @@ import (
 var env environment
 
 type environment struct {
-	fs fs.Filesystem
+	fs afero.Afero
 	prompter *prompter.CLI
 }
 
@@ -32,7 +32,7 @@ to quickly create a Cobra application.`,
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	env.fs = fs.NewNativeFS()
+	env.fs = afero.Afero{Fs: afero.NewOsFs()}
 	env.prompter = prompter.NewCLIPrompter()
 	if cmd, err := rootCmd.ExecuteC(); err != nil {
 		if cmd == nil {

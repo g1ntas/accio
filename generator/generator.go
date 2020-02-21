@@ -39,27 +39,15 @@ type BlueprintParser interface {
 	Parse(b []byte) (*blueprint, error)
 }
 
-type Writer interface {
-	WriteFile(name string, data []byte, perm os.FileMode) error
-}
-
-type Reader interface {
+type FileReader interface {
 	ReadFile(name string) ([]byte, error)
 }
 
-type Walker interface {
-	Walk(root string, walkFn filepath.WalkFunc) error
-}
-
-type ReaderWalker interface {
-	Reader
-	Walker
-}
-
 type Filesystem interface {
-	Reader
-	Walker
-	Writer
+	FileReader
+	Walk(root string, walkFn filepath.WalkFunc) error
+	WriteFile(name string, data []byte, perm os.FileMode) error
+	MkdirAll(path string, perm os.FileMode) error
 	Stat(name string) (os.FileInfo, error)
 }
 
@@ -164,6 +152,7 @@ func NewRunner(fs Filesystem, mp BlueprintParser, dir string, options ...func(*R
 	return r
 }
 
+// todo: write docs
 func (r *Runner) Run(generator *Generator) error {
 	return r.fs.Walk(generator.Dest, func(abspath string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -213,8 +202,16 @@ func (r *Runner) Run(generator *Generator) error {
 			body = []byte(tpl.Body)
 		}
 		// if file exists, call callback to decide if it should be skipped
-		if _, err := r.fs.Stat(target); err == nil && !r.onExists(target) {
+		_, err = r.fs.Stat(target)
+		if err == nil && !r.onExists(target) {
 			return nil
+		}
+		if err != nil && !os.IsNotExist(err) {
+			return r.handleError(err, abspath)
+		}
+		err = os.MkdirAll(filepath.Dir(target), 0755)
+		if err != nil {
+			return r.handleError(err, abspath)
 		}
 		err = r.fs.WriteFile(target, body, 0775)
 		if err != nil {

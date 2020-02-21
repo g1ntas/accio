@@ -6,7 +6,7 @@ import (
 	"unicode"
 )
 
-func (g *Generator) ReadConfig(r Reader) error {
+func (g *Generator) ReadConfig(r FileReader) error {
 	b, err := r.ReadFile(g.manifestPath())
 	if err != nil {
 		return err

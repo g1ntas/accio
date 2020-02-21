@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/g1ntas/accio/fs"
 	"github.com/g1ntas/accio/generator"
 	"github.com/g1ntas/accio/generator/blueprint"
 	"github.com/hashicorp/go-getter"
 	"github.com/hashicorp/go-getter/helper/url"
 	"github.com/hashicorp/go-safetemp"
+	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	"io"
 	"os"
@@ -115,9 +115,11 @@ func generatorHelpFunc(cmd *cobra.Command, args []string) {
 	helpCmd.HelpFunc()(helpCmd, args)
 }
 
-func filesystem(cmd *cobra.Command) fs.Filesystem {
+func filesystem(cmd *cobra.Command) afero.Afero {
 	if cmd.Flag("dry").Value.String() == "true" {
-		return fs.NewDryFS(env.fs)
+		roBase := afero.NewReadOnlyFs(env.fs.Fs)
+		ufs := afero.NewCopyOnWriteFs(roBase, afero.NewMemMapFs())
+		return afero.Afero{Fs: ufs}
 	}
 	return env.fs
 }

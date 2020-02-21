@@ -3,6 +3,7 @@ package generator
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/spf13/afero"
 	"os"
 	"path/filepath"
 	"testing"
@@ -231,7 +232,8 @@ var runnerTests = []struct {
 func TestRunner(t *testing.T) {
 	gen := &Generator{Dest: "generator"}
 	for _, test := range runnerTests {
-		fs := &fsMock{test.input, tree{}}
+		//fs := &fsMock{test.input, tree{}}
+		fs := afero.Afero{Fs: afero.NewMemMapFs()}
 		runner := NewRunner(fs, &blueprintParserMock{}, "output")
 		runner.onExists = func(p string) bool {
 			return !test.skipExisting
