@@ -186,7 +186,7 @@ func fetchGeneratorFromUrl(src, dst string) (*generator.Generator, error) {
 	if err != nil {
 		return nil, err
 	}
-	abspath, isFile, err := parseFilePath(src, cwd)
+	abspath, isFile, err := parseFilePath(src, cwd) // todo: it's possible and target path doesnt't exist and is git
 	if err != nil {
 		return nil, err
 	}
@@ -198,13 +198,6 @@ func fetchGeneratorFromUrl(src, dst string) (*generator.Generator, error) {
 	}
 	gen := generator.NewGenerator(dst)
 	ctx, cancel := context.WithCancel(context.Background())
-	getter.Detectors = []getter.Detector{
-		new(getter.GitHubDetector),
-		new(getter.GitDetector),
-		new(getter.BitBucketDetector),
-		new(getter.FileDetector),
-	}
-	httpGetter := &getter.HttpGetter{Netrc: true,}
 	client := &getter.Client{
 		Ctx:     ctx,
 		Src:     src,
@@ -214,16 +207,11 @@ func fetchGeneratorFromUrl(src, dst string) (*generator.Generator, error) {
 		Options: []getter.ClientOption{},
 		Detectors: []getter.Detector{
 			new(getter.GitHubDetector),
-			new(getter.GitDetector),
 			new(getter.BitBucketDetector),
-			new(getter.FileDetector),
+			new(getter.GitDetector),
 		},
 		Getters: map[string]getter.Getter{
-			"file":  new(getter.FileGetter),
 			"git":   new(getter.GitGetter),
-			"hg":    new(getter.HgGetter),
-			"http":  httpGetter,
-			"https": httpGetter,
 		},
 	}
 	wg := sync.WaitGroup{}
