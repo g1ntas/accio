@@ -7,7 +7,6 @@ import (
 	"github.com/g1ntas/accio/generator"
 	"github.com/g1ntas/accio/generator/blueprint"
 	"github.com/hashicorp/go-getter"
-	"github.com/hashicorp/go-getter/helper/url"
 	"github.com/hashicorp/go-safetemp"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
@@ -26,20 +25,11 @@ var runCmd = &cobra.Command{
 	Long:  ``,
 	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		dst, closer, err := safetemp.Dir("", "accio")
+		gen, closer, err := fetchGeneratorFromUrl(args[0])
 		if err != nil {
 			return err
 		}
-		dst = filepath.Join(dst, "tmp") // work around for https://github.com/hashicorp/go-getter/issues/114
 		defer Close(closer)
-		gen, err := fetchGeneratorFromUrl(args[0], dst)
-		if err != nil {
-			return err
-		}
-		err = gen.ReadConfig(env.fs)
-		if err != nil {
-			return err
-		}
 		writeDir, err := workingDir(cmd)
 		if err != nil {
 			return err
@@ -81,6 +71,26 @@ func init() {
 	getter.Getters = map[string]getter.Getter{}
 }
 
+func fetchGeneratorFromUrl(src string) (*generator.Generator, io.Closer, error) {
+	dst, closer, err := safetemp.Dir("", "accio")
+	if err != nil {
+		return nil, nil, err
+	}
+	dst = filepath.Join(dst, "tmp") // work around for https://github.com/hashicorp/go-getter/issues/114
+	err = fetchSource(src, dst)
+	if err != nil {
+		Close(closer)
+		return nil, nil, err
+	}
+	gen := generator.NewGenerator(dst)
+	err = gen.ReadConfig(env.fs)
+	if err != nil {
+		Close(closer)
+		return nil, nil, err
+	}
+	return gen, closer, nil
+}
+
 func Close(c io.Closer) {
 	if err := c.Close(); err != nil {
 		printErr(err)
@@ -93,19 +103,16 @@ func generatorHelpFunc(cmd *cobra.Command, args []string) {
 		cmd.Root().HelpFunc()(cmd, args)
 		return
 	}
-	gen, err := fetchGeneratorFromUrl(args[1], "")
+	gen, closer, err := fetchGeneratorFromUrl(args[1])
 	if err != nil {
-		cmd.PrintErrln(err) // todo: refactor to use own print fn
-		if err := cmd.Usage(); err != nil {
-			cmd.PrintErrln(err) // todo: refactor to use own print fn
-		}
+		printErr(err)
+		fmt.Println(cmd.UsageString())
 		return
 	}
-
-	// todo: remove use and short description
+	defer Close(closer)
 	helpCmd := &cobra.Command{
-		Use:   "gen.Name",
-		Short: "gen.Description",
+		Use:   args[1],
+		Short: "",
 		Long:  buildGeneratorHelp(gen),
 		Run:   func(cmd *cobra.Command, args []string) {},
 	}
@@ -181,22 +188,11 @@ func buildGeneratorHelp(gen *generator.Generator) string {
 	return strings.TrimSpace(help)
 }
 
-func fetchGeneratorFromUrl(src, dst string) (*generator.Generator, error) {
+func fetchSource(src, dst string) error {
 	cwd, err := os.Getwd()
 	if err != nil {
-		return nil, err
+		return err
 	}
-	abspath, isFile, err := parseFilePath(src, cwd) // todo: it's possible and target path doesnt't exist and is git
-	if err != nil {
-		return nil, err
-	}
-	if isFile {
-		if _, err = env.fs.Stat(abspath); err != nil {
-			return nil, err
-		}
-		return generator.NewGenerator(abspath), nil
-	}
-	gen := generator.NewGenerator(dst)
 	ctx, cancel := context.WithCancel(context.Background())
 	client := &getter.Client{
 		Ctx:     ctx,
@@ -209,8 +205,10 @@ func fetchGeneratorFromUrl(src, dst string) (*generator.Generator, error) {
 			new(getter.GitHubDetector),
 			new(getter.BitBucketDetector),
 			new(getter.GitDetector),
+			new(getter.FileDetector),
 		},
 		Getters: map[string]getter.Getter{
+			"file":  &getter.FileGetter{Copy: true},
 			"git":   new(getter.GitGetter),
 		},
 	}
@@ -231,33 +229,12 @@ func fetchGeneratorFromUrl(src, dst string) (*generator.Generator, error) {
 		signal.Reset(os.Interrupt)
 		cancel()
 		wg.Wait()
-		return nil, errors.New(sig.String())
+		return errors.New(sig.String())
 	case <-ctx.Done():
 		wg.Wait()
 	case err := <-errChan:
 		wg.Wait()
-		return nil, err
+		return err
 	}
-	return gen, nil
-}
-
-// parseFilePath returns absolute path of the given filepath.
-// If filepath is relative path, it will be expanded where
-// base path is considered second argument 'pwd'. If given
-// path isn't correct filepath, second return parameter
-// will be returned as false.
-func parseFilePath(p, pwd string) (string, bool, error) {
-	d := getter.FileDetector{}
-	p, isFile, err := d.Detect(p, pwd)
-	if err != nil {
-		return "", false, err
-	}
-	if !isFile {
-		return "", false, nil
-	}
-	u, err := url.Parse(p)
-	if err != nil {
-		return "", false, err
-	}
-	return u.Path, true, nil
+	return nil
 }
