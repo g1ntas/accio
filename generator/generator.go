@@ -209,7 +209,7 @@ func (r *Runner) Run(generator *Generator) error {
 		if err != nil && !os.IsNotExist(err) {
 			return r.handleError(err, abspath)
 		}
-		err = os.MkdirAll(filepath.Dir(target), 0755)
+		err = r.fs.MkdirAll(filepath.Dir(target), 0755)
 		if err != nil {
 			return r.handleError(err, abspath)
 		}
