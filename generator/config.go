@@ -99,11 +99,6 @@ func parsePromptMessage(conf map[string]interface{}, key string) (string, error)
 	return s, nil
 }
 
-// startsOrEndsWithRune checks whether string starts or ends with a given rune.
-func startsOrEndsWithRune(s string, r rune) bool {
-	return s[0:1] == string(r) || s[len(s)-1:] == string(r)
-}
-
 // isLetter checks whether r is an ASCII valid letter ([a-zA-Z]).
 func isLetter(r rune) bool {
 	return r <= unicode.MaxASCII && unicode.IsLetter(r)

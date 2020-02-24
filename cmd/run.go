@@ -6,11 +6,12 @@ import (
 	"fmt"
 	"github.com/g1ntas/accio/generator"
 	"github.com/g1ntas/accio/generator/blueprint"
-	"github.com/hashicorp/go-getter"
+	"github.com/g1ntas/accio/gitgetter"
 	"github.com/hashicorp/go-safetemp"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	"io"
+	"io/ioutil"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -30,6 +31,10 @@ var runCmd = &cobra.Command{
 			return err
 		}
 		defer Close(closer)
+		err = gen.ReadConfig(env.fs)
+		if err != nil {
+			return err
+		}
 		writeDir, err := workingDir(cmd)
 		if err != nil {
 			return err
@@ -66,28 +71,24 @@ func init() {
 	runCmd.Flags().BoolP("ignore-errors", "i", false, "Ignore errors for files being generated")
 	runCmd.Flags().StringP("working-dir", "w", "", "Specify working directory")
 	rootCmd.AddCommand(runCmd)
-
-	getter.Detectors = []getter.Detector{}
-	getter.Getters = map[string]getter.Getter{}
 }
 
 func fetchGeneratorFromUrl(src string) (*generator.Generator, io.Closer, error) {
+	info, err := env.fs.Stat(src)
+	if err == nil && info.IsDir() {
+		return generator.NewGenerator(src), ioutil.NopCloser(nil), nil
+	}
 	dst, closer, err := safetemp.Dir("", "accio")
 	if err != nil {
 		return nil, nil, err
 	}
 	dst = filepath.Join(dst, "tmp") // work around for https://github.com/hashicorp/go-getter/issues/114
-	err = fetchSource(src, dst)
+	err = cloneRepo(src, dst)
 	if err != nil {
 		Close(closer)
 		return nil, nil, err
 	}
 	gen := generator.NewGenerator(dst)
-	err = gen.ReadConfig(env.fs)
-	if err != nil {
-		Close(closer)
-		return nil, nil, err
-	}
 	return gen, closer, nil
 }
 
@@ -188,37 +189,20 @@ func buildGeneratorHelp(gen *generator.Generator) string {
 	return strings.TrimSpace(help)
 }
 
-func fetchSource(src, dst string) error {
+func cloneRepo(src, dst string) error {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	client := &getter.Client{
-		Ctx:     ctx,
-		Src:     src,
-		Dst:     dst,
-		Pwd:     cwd,
-		Mode:    getter.ClientModeDir,
-		Options: []getter.ClientOption{},
-		Detectors: []getter.Detector{
-			new(getter.GitHubDetector),
-			new(getter.BitBucketDetector),
-			new(getter.GitDetector),
-			new(getter.FileDetector),
-		},
-		Getters: map[string]getter.Getter{
-			"file":  &getter.FileGetter{Copy: true},
-			"git":   new(getter.GitGetter),
-		},
-	}
+	client := &gitgetter.Client{Pwd: cwd}
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	errChan := make(chan error, 2)
 	go func() {
 		defer wg.Done()
 		defer cancel()
-		if err := client.Get(); err != nil {
+		if err := client.CloneRepository(ctx, src, dst); err != nil {
 			errChan <- err
 		}
 	}()
