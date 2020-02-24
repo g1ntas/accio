@@ -11,6 +11,7 @@ type Client struct {
 }
 
 func (c *Client) CloneRepository(ctx context.Context, src, dst string) error {
+	gitGetter := new(getter.GitGetter)
 	client := &getter.Client{
 		Ctx:     ctx,
 		Src:     removeSchemeForGitServiceUrl(src),
@@ -25,7 +26,9 @@ func (c *Client) CloneRepository(ctx context.Context, src, dst string) error {
 			new(ForcedGitDetector),
 		},
 		Getters: map[string]getter.Getter{
-			"git": new(getter.GitGetter),
+			"git": gitGetter,
+			"http": gitGetter,
+			"https": gitGetter,
 		},
 	}
 	return client.Get()
