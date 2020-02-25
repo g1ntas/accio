@@ -11,6 +11,23 @@ func NewCLIPrompter() *CLI {
 	return &CLI{}
 }
 
+func setDefaultStyle(icons *survey.IconSet) {
+	icons.Error.Text = "[ERROR]"
+	icons.Help.Text = ""
+	icons.Question.Text = "?"
+	icons.SelectFocus.Text = ">"
+	icons.UnmarkedOption.Text = "[]"
+	icons.UnmarkedOption.Text = "[x]"
+
+	icons.Error.Format = ""
+	icons.Help.Format = ""
+	icons.HelpInput.Format = ""
+	icons.Question.Format = ""
+	icons.SelectFocus.Format = ""
+	icons.UnmarkedOption.Format = ""
+	icons.UnmarkedOption.Format = ""
+}
+
 func (p *CLI) Get(message, help string, validate func(val string) error) (val string, err error) {
 	prompt := &survey.Input{
 		Message: message,
@@ -21,7 +38,7 @@ func (p *CLI) Get(message, help string, validate func(val string) error) (val st
 			return err
 		}
 		return nil
-	}))
+	}), survey.WithIcons(setDefaultStyle))
 	if err != nil {
 		return "", err
 	}
@@ -33,7 +50,7 @@ func (p *CLI) Confirm(message, help string) (val bool, err error) {
 		Message: message,
 		Help: help,
 	}
-	err = survey.AskOne(prompt, &val)
+	err = survey.AskOne(prompt, &val, survey.WithIcons(setDefaultStyle))
 	if err != nil {
 		return false, err
 	}
@@ -45,7 +62,7 @@ func (p *CLI) SelectOne(message, help string, options []string) (val string, err
 		Message: message,
 		Options: options,
 	}
-	err = survey.AskOne(prompt, &val)
+	err = survey.AskOne(prompt, &val, survey.WithIcons(setDefaultStyle))
 	if err != nil {
 		return "", err
 	}
@@ -57,7 +74,7 @@ func (p *CLI) SelectOneIndex(message, help string, options []string) (val int, e
 		Message: message,
 		Options: options,
 	}
-	err = survey.AskOne(prompt, &val)
+	err = survey.AskOne(prompt, &val, survey.WithIcons(setDefaultStyle))
 	if err != nil {
 		return -1, err
 	}
@@ -70,7 +87,7 @@ func (p *CLI) SelectMultiple(message, help string, options []string) ([]string, 
 		Message: message,
 		Options: options,
 	}
-	err := survey.AskOne(prompt, &val)
+	err := survey.AskOne(prompt, &val, survey.WithIcons(setDefaultStyle))
 	if err != nil {
 		return []string{}, err
 	}
