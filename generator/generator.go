@@ -29,6 +29,11 @@ type OnExistsFn func(path string) bool
 // to terminate Runner and return the error.
 type OnErrorFn func(err error) bool
 
+// OnSuccessFn is called on each successfully generated file.
+// First argument holds path of the source file, and second
+// argument - path of the generated file.
+type OnSuccessFn func(src, dst string)
+
 type blueprint = struct {
 	Body     string
 	Filename string
@@ -58,15 +63,15 @@ type relFile struct {
 }
 
 type RunError struct {
-	Err error
+	Err  error
 	Path string
 }
 
-func (e *RunError) Error() string  {
+func (e *RunError) Error() string {
 	return fmt.Sprintf("generating %s: %s", e.Path, e.Err.Error())
 }
 
-func (e *RunError) Unwrap() error  {
+func (e *RunError) Unwrap() error {
 	return e.Err
 }
 
@@ -94,6 +99,12 @@ func OnError(fn OnErrorFn) func(r *Runner) {
 	}
 }
 
+func OnSuccess(fn OnSuccessFn) func(r *Runner) {
+	return func(r *Runner) {
+		r.onSuccess = fn
+	}
+}
+
 func NewGenerator(dir string) *Generator {
 	return &Generator{
 		Dest:    dir,
@@ -105,7 +116,7 @@ func (g *Generator) PromptAll(prompter Prompter) (map[string]interface{}, error)
 	data := make(map[string]interface{})
 	// sort prompts by keys, so they always appear in the same order
 	keys, i := make([]string, len(g.Prompts)), 0
-	for k, _ := range g.Prompts {
+	for k := range g.Prompts {
 		keys[i] = k
 		i++
 	}
@@ -125,12 +136,13 @@ func (g *Generator) manifestPath() string {
 }
 
 type Runner struct {
-	fs       Filesystem
-	mp       BlueprintParser
-	writeDir string // absolute path to the directory to write generated files
-	onExists OnExistsFn
-	onError  OnErrorFn
-	ignore   []*relFile // collection of files to ignore during run
+	fs        Filesystem
+	mp        BlueprintParser
+	writeDir  string // absolute path to the directory to write generated files
+	onExists  OnExistsFn
+	onError   OnErrorFn
+	onSuccess OnSuccessFn
+	ignore    []*relFile // collection of files to ignore during run
 }
 
 func NewRunner(fs Filesystem, mp BlueprintParser, dir string, options ...func(*Runner)) *Runner {
@@ -138,12 +150,13 @@ func NewRunner(fs Filesystem, mp BlueprintParser, dir string, options ...func(*R
 		fs:       fs,
 		mp:       mp,
 		writeDir: dir,
-		onExists: func(path string) bool {
+		onExists: func(_ string) bool {
 			return false
 		},
-		onError: func(err error) bool {
+		onError: func(_ error) bool {
 			return false
 		},
+		onSuccess: func(_, _ string) {},
 	}
 	IgnoreFile(manifestFilename)(r)
 	for _, option := range options {
@@ -217,6 +230,7 @@ func (r *Runner) Run(generator *Generator) error {
 		if err != nil {
 			return r.handleError(err, abspath)
 		}
+		r.onSuccess(abspath, target)
 		return nil
 	})
 }

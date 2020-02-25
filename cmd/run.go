@@ -53,6 +53,7 @@ var runCmd = &cobra.Command{
 			writeDir,
 			generator.OnFileExists(existingFileHandler(cmd)),
 			generator.OnError(errorHandler(cmd)),
+			generator.OnSuccess(successHandler(cmd)),
 			generator.IgnoreDir(".git"),
 		)
 		err = runner.Run(gen)
@@ -111,6 +112,11 @@ func generatorHelpFunc(cmd *cobra.Command, args []string) {
 		return
 	}
 	defer Close(closer)
+	err = gen.ReadConfig(env.fs)
+	if err != nil {
+		printErr(err)
+		return
+	}
 	helpCmd := &cobra.Command{
 		Use:   args[1],
 		Short: "",
@@ -155,6 +161,12 @@ func errorHandler(cmd *cobra.Command) generator.OnErrorFn {
 			printErr(fmt.Errorf("%w. Skipping...", err))
 		}
 		return ignoreErr
+	}
+}
+
+func successHandler(cmd *cobra.Command) generator.OnSuccessFn {
+	return func(_, dst string) {
+		fmt.Printf("[SUCCESS] %s created.\n", dst)
 	}
 }
 
