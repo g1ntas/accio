@@ -33,7 +33,7 @@ to quickly create a Cobra application.`,
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	env.fs = afero.Afero{Fs: afero.NewOsFs()}
-	env.prompter = prompter.NewCLIPrompter()
+	env.prompter = prompter.NewCLIPrompter(os.Stdin, os.Stdout, os.Stderr)
 	if cmd, err := rootCmd.ExecuteC(); err != nil {
 		if cmd == nil {
 			printErr(err)

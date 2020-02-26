@@ -67,10 +67,14 @@ func (p *integer) kind() string {
 }
 
 func (p *integer) Prompt(prompter Prompter) (interface{}, error) {
+	notInt := errors.New("value is not an integer")
 	val, err := prompter.Get(p.Msg, p.HelpText, func(val string) error {
+		if len(val) == 0 {
+			return notInt
+		}
 		for i, r := range val {
 			if r < '0' || r > '9' || (r == '-' && i != 0) {
-				return errors.New("value is not an integer")
+				return notInt
 			}
 		}
 		return nil
