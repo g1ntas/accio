@@ -379,51 +379,60 @@ func TestLex(t *testing.T) {
 	}
 }
 
-var lexDelimTests = []lexTest{
-	{"tag with inline body", `tag {{test}`, []token{
-		mkToken(tokenIdentifier, "tag"),
-		tCustomBodyLeft,
-		mkToken(tokenInlineBody, "test"),
-		tCustomBodyRight,
-		tEOF,
-	}},
-	{"tag with empty inline body", `tag {{}`, []token{
-		mkToken(tokenIdentifier, "tag"),
-		tCustomBodyLeft,
-		mkToken(tokenInlineBody, ""),
-		tCustomBodyRight,
-		tEOF,
-	}},
-	{"tag with multiline body", "tag {{ \t\ntest\n}", []token{
-		mkToken(tokenIdentifier, "tag"),
-		tCustomBodyLeft,
-		mkToken(tokenMultilineBody, "test"),
-		tCustomBodyRight,
-		tEOF,
-	}},
-	{"tag with empty multiline body", "tag {{ \t\n\n}", []token{
-		mkToken(tokenIdentifier, "tag"),
-		tCustomBodyLeft,
-		mkToken(tokenMultilineBody, ""),
-		tCustomBodyRight,
-		tEOF,
-	}},
-	// todo: test unicode delimiters
-	// todo: test single char delimiters
-	// todo: test single char left and multi char right delimiters
+func lexDelimTests(leftDelim, rightDelim string) []lexTest {
+	return []lexTest{
+		{"tag with inline body", fmt.Sprintf("tag %stest%s", leftDelim, rightDelim), []token{
+			mkToken(tokenIdentifier, "tag"),
+			mkToken(tokenLeftDelim, leftDelim),
+			mkToken(tokenInlineBody, "test"),
+			mkToken(tokenRightDelim, rightDelim),
+			tEOF,
+		}},
+		{"tag with empty inline body", fmt.Sprintf("tag %s%s", leftDelim, rightDelim), []token{
+			mkToken(tokenIdentifier, "tag"),
+			mkToken(tokenLeftDelim, leftDelim),
+			mkToken(tokenInlineBody, ""),
+			mkToken(tokenRightDelim, rightDelim),
+			tEOF,
+		}},
+		{"tag with multiline body", fmt.Sprintf("tag %s \t\ntest\n%s", leftDelim, rightDelim), []token{
+			mkToken(tokenIdentifier, "tag"),
+			mkToken(tokenLeftDelim, leftDelim),
+			mkToken(tokenMultilineBody, "test"),
+			mkToken(tokenRightDelim, rightDelim),
+			tEOF,
+		}},
+		{"tag with empty multiline body", fmt.Sprintf("tag %s \t\n\n%s", leftDelim, rightDelim), []token{
+			mkToken(tokenIdentifier, "tag"),
+			mkToken(tokenLeftDelim, leftDelim),
+			mkToken(tokenMultilineBody, ""),
+			mkToken(tokenRightDelim, rightDelim),
+			tEOF,
+		}},
+	}
 }
 
-var (
-	tCustomBodyLeft  = mkToken(tokenLeftDelim, "{{")
-	tCustomBodyRight = mkToken(tokenRightDelim, "}")
-)
+var customDelimiters = []struct{
+	left, right string
+} {
+	{"{{", "}"},
+	{"[", "]]"},
+	{"\u4e16", "\u754c"},
+	{
+		// emoji's: 👉 & 👈
+		"\u005c\u0075\u0064\u0038\u0033\u0064\u005c\u0075\u0064\u0063\u0034\u0039",
+		"\u005c\u0075\u0064\u0038\u0033\u0064\u005c\u0075\u0064\u0063\u0034\u0038",
+	},
+}
 
 // Test bodies with different delimiters.
 func TestDelims(t *testing.T) {
-	for _, test := range lexDelimTests {
-		tokens := collect(&test, "{{", "}")
-		if !equal(tokens, test.tokens, false) {
-			t.Errorf("%s:\ngot\n\t%+v\nexpected\n\t%v", test.name, tokens, test.tokens)
+	for _, delim := range customDelimiters {
+		for _, test := range lexDelimTests(delim.left, delim.right) {
+			tokens := collect(&test, delim.left, delim.right)
+			if !equal(tokens, test.tokens, false) {
+				t.Errorf("%s:\ngot\n\t%+v\nexpected\n\t%v", test.name, tokens, test.tokens)
+			}
 		}
 	}
 }
@@ -470,4 +479,26 @@ func TestPos(t *testing.T) {
 	}
 }
 
-// todo: test that goroutine exits after error
+// Test that an error shuts down the lexing goroutine.
+func TestShutdown(t *testing.T) {
+	// We need to duplicate markup.Parse here to hold on to the lexer.
+	const text = ".tag"
+	lexer := lex(text, "", "")
+	err := NewParser().parseLexer(lexer)
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	// The error should have drained the input. Therefore, the lexer should be shut down.
+	token, ok := <-lexer.tokens
+	if ok {
+		t.Errorf("input was not drained; got %v", token)
+	}
+}
+
+func (p *Parser) parseLexer(lex *lexer) (err error) {
+	defer p.recover(&err)
+	p.startParse(lex)
+	p.parse()
+	p.stopParse()
+	return nil
+}

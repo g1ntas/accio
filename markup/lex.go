@@ -155,7 +155,7 @@ func (lx *lexer) drain() {
 
 // atString checks whether the next scanned run of characters is equal to provided string.
 func (lx *lexer) atString(s string) bool {
-	tail := lx.input[lx.pos-1:]
+	tail := lx.input[lx.pos-lx.size:]
 	return strings.HasPrefix(tail, s)
 }
 
@@ -344,7 +344,7 @@ Loop:
 // to be present. First char is already scanned. By default it's '<<',
 // but can be changed by Parser.
 func lexBodyLeftDelimiter(lx *lexer) lexStateFn {
-	lx.pos += Pos(len(lx.leftDelim)) - 1
+	lx.pos += Pos(len(lx.leftDelim)) - lx.size
 	lx.emit(tokenLeftDelim)
 	return lexBody
 }

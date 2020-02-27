@@ -421,5 +421,3 @@ func TestErrors(t *testing.T) {
 		}
 	}
 }
-
-// todo: write test to ensure thread safety, as same parser can be used to parse multiple files

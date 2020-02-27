@@ -27,7 +27,6 @@ type Body struct {
 
 // AttrNode todo
 type AttrNode struct {
-	Tag *TagNode
 	Name string
 	Value string
 }
@@ -42,7 +41,6 @@ func (p Pos) Position() Pos {
 
 // Parser is the representation of a single parsed template.
 type Parser struct {
-	Name string     // full-name of the template represented by the tree.
 	Tags []*TagNode // list of nodes of the tree.
 	text string     // text parsed to create the template.
 	// For parsing only; cleared after parse.
@@ -54,12 +52,28 @@ type Parser struct {
 // parseStateFn represents the state of the parser as a function that returns the next state.
 type parseStateFn func(*Parser) parseStateFn
 
-// parse returns a parse.Parser of the template. If an error is encountered,
-// parsing stops and an empty map is returned with error.
+// Parse is same as Parser.Parse, but also creates and returns Parser.
 func Parse(text, leftDelim, rightDelim string) (p *Parser, err error) {
-	p = &Parser{}
-	_, err = p.parse(text, leftDelim, rightDelim)
+	p = NewParser()
+	err = p.Parse(text, leftDelim, rightDelim)
 	return
+}
+
+// NewParser constructs new parser.
+func NewParser() *Parser {
+	p := &Parser{}
+	return p
+}
+
+// Parse parses given text string into list of nodes in Parser.Tags.
+// If an error is encountered parsing stops and error is returned.
+func (p *Parser) Parse(text, leftDelim, rightDelim string) (err error) {
+	defer p.recover(&err)
+	p.text = text
+	p.startParse(lex(p.text, leftDelim, rightDelim))
+	p.parse()
+	p.stopParse()
+	return nil
 }
 
 // recover is the handler that turns panic into returns from the top level of parse.
@@ -71,33 +85,29 @@ func (p *Parser) recover(errp *error) {
 		}
 		if p != nil {
 			p.lex.drain()
-			p.stop()
+			p.stopParse()
 		}
 		*errp = e.(error)
 	}
 }
 
-// stop terminates Parser.
-func (p *Parser) stop() {
+func (p *Parser) startParse(lex *lexer) {
+	p.Tags = []*TagNode{}
+	p.lex = lex
+}
+
+func (p *Parser) stopParse() {
 	p.lex = nil
 }
 
-// parse parses the template definition string to construct a representation of
-// the template for execution. If either body delimiter string is empty, the
-// default ("<<" or ">>") is used.
-func (p *Parser) parse(text, leftDelim, rightDelim string) (tree *Parser, err error) {
-	defer p.recover(&err)
-	p.Tags = []*TagNode{}
-	p.lex = lex(text, leftDelim, rightDelim) // start parsing
-	p.text = text
+func (p *Parser) parse() {
 	for state := parseTemplate; state != nil; {
 		state = state(p)
 	}
-	p.stop()
-	return p, nil
 }
 
-// parseTemplate is the top-level Parser for a template. It runs to EOF.
+// parseTemplate is the top-level Parser for a template.
+// It runs until it reaches EOF or error is encountered.
 func parseTemplate(p *Parser) parseStateFn {
 	switch token := p.next(); token.typ {
 	case tokenEOF:
@@ -107,7 +117,6 @@ func parseTemplate(p *Parser) parseStateFn {
 	case tokenIdentifier:
 		return parseTag
 	case tokenError:
-		// panic when getting error on 'next' level
 		return p.errorf("%s", token)
 	default:
 		return p.unexpected()
@@ -188,7 +197,6 @@ func parseAttr(p *Parser) parseStateFn {
 		return p.errorf("attribute '%s' already exists for this tag", name)
 	}
 	p.tag.Attributes[name] = &AttrNode{
-		Tag: p.tag,
 		Name: name,
 		Value: value,
 	}

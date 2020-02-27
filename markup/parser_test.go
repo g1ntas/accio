@@ -1,13 +1,9 @@
 package markup
 
 import (
-	"flag"
 	"fmt"
-	"strings"
 	"testing"
 )
-
-var debug = flag.Bool("debug", false, "show the errors produced by the main tests")
 
 func inlineBody(s string) *Body{
 	return &Body{s, true}
@@ -114,7 +110,7 @@ tag [[
 	{"delimiters tag | invalid attr", `delimiters -attr="test"`, hasError, []*TagNode{}},
 
 
-	// errors fired in lexer
+	// lexer errors
 	{"invalid character", "*", hasError, emptyAst},
 	{"invalid character within tag identifier", "t*g", hasError, emptyAst},
 	{"dash at the start of the tag", "-tag", hasError, emptyAst},
@@ -134,8 +130,6 @@ tag [[
 	{"whitespace before multiline right delimiter",  "tag <<\n\n\t>>", hasError, emptyAst},
 	{"left delimiter on newline",  "tag\n<<", hasError, emptyAst},
 	{"attr on newline",  "tag\n-attr", hasError, emptyAst},
-
-	// errors fired in Parser
 }
 
 func astEqual(ast1, ast2 []*TagNode) bool {
@@ -144,7 +138,9 @@ func astEqual(ast1, ast2 []*TagNode) bool {
 	}
 	for i, t1 := range ast1 {
 		t2 := ast2[i]
-		if t1.String() != t2.String() {
+		str1 := t1.String()
+		str2 := t2.String()
+		if str1 != str2 {
 			return false
 		}
 	}
@@ -156,22 +152,7 @@ func (n *AttrNode) String() string {
 }
 
 func (n *TagNode) String() string {
-	var attrs []string
-	for _, attr := range n.Attributes {
-		attrs = append(attrs, attr.String())
-	}
-	repr := n.Name
-	if len(attrs) > 0 {
- 		repr = fmt.Sprintf("%s (%s)", repr, strings.Join(attrs, ","))
-	}
-	if n.Body != nil {
-		if n.Body.Inline {
-			repr = fmt.Sprintf("%s -<<%s>>- ", repr, n.Body.Content)
-		} else {
-			repr = fmt.Sprintf("%s <<%s>> ", repr, n.Body.Content)
-		}
-	}
-	return fmt.Sprintf("{%s}", repr)
+	return fmt.Sprintf("{%s %v %v}", n.Name, n.Attributes, n.Body)
 }
 
 func TestParse(t *testing.T) {
@@ -184,9 +165,6 @@ func TestParse(t *testing.T) {
 			t.Errorf("%q: unexpected error: %v", test.name, err)
 		case err != nil && !test.ok:
 			// expected error, got one
-			if *debug {
-				fmt.Printf("%s: %s\n\t%s\n", test.name, test.input, err)
-			}
 		case !astEqual(test.ast, parser.Tags):
 			t.Errorf("%s=(%q):\ngot\n\t%s\nexpected\n\t%s", test.name, test.input, parser.Tags, test.ast)
 		}
