@@ -2,7 +2,6 @@ package generator
 
 import (
 	"errors"
-	"fmt"
 	"strconv"
 )
 
@@ -17,7 +16,6 @@ const (
 	promptInput       = "input"
 	promptInteger     = "integer"
 	promptConfirm     = "confirm"
-	promptList        = "list"
 	promptChoice      = "choice"
 	promptMultiChoice = "multi-choice"
 )
@@ -56,7 +54,6 @@ func (p *input) Prompt(prompter Prompter) (interface{}, error) {
 	return prompter.Get(p.Msg, p.HelpText, nilValidator)
 }
 
-
 // integer
 type integer struct {
 	Base
@@ -85,7 +82,6 @@ func (p *integer) Prompt(prompter Prompter) (interface{}, error) {
 	return strconv.Atoi(val)
 }
 
-
 // confirm
 type confirm struct {
 	Base
@@ -97,31 +93,6 @@ func (p *confirm) kind() string {
 
 func (p *confirm) Prompt(prompter Prompter) (interface{}, error) {
 	return prompter.Confirm(p.Msg, p.HelpText)
-}
-
-
-// list
-type list struct {
-	Base
-}
-
-func (p *list) kind() string {
-	return promptList
-}
-
-func (p *list) Prompt(prompter Prompter) (interface{}, error) {
-	values := make([]string, 0, 5)
-	help := fmt.Sprintf("Return empty value to finish.\n\n%s", p.HelpText)
-	for {
-		val, err := prompter.Get(p.Msg, help, nilValidator)
-		if err != nil {
-			return nil, err
-		}
-		if val == "" {
-			return values, nil
-		}
-		values = append(values, val)
-	}
 }
 
 // choice
@@ -137,7 +108,6 @@ func (p *choice) kind() string {
 func (p *choice) Prompt(prompter Prompter) (interface{}, error) {
 	return prompter.SelectOne(p.Msg, p.HelpText, p.options)
 }
-
 
 // multiChoice
 type multiChoice struct {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/BurntSushi/toml"
+	"github.com/stretchr/testify/assert"
 	"strings"
 	"testing"
 )
@@ -21,46 +22,6 @@ type conf = map[string]interface{}
 // strOfLen generates string of length n
 func strOfLen(n int) string {
 	return strings.Repeat("a", n)
-}
-
-// promptSignature returns Prompt data representation in string, used by generatorsEqual for comparison
-func promptSignature(p Prompt) string {
-	switch v := p.(type) {
-	case *input:
-		return fmt.Sprintf("%q %q", v.Msg, v.HelpText)
-	case *integer:
-		return fmt.Sprintf("%q %q", v.Msg, v.HelpText)
-	case *confirm:
-		return fmt.Sprintf("%q %q", v.Msg, v.HelpText)
-	case *list:
-		return fmt.Sprintf("%q %q", v.Msg, v.HelpText)
-	case *choice:
-		return fmt.Sprintf("%q %q %v", v.Msg, v.HelpText, v.options)
-	case *multiChoice:
-		return fmt.Sprintf("%q %q %v", v.Msg, v.HelpText, v.options)
-	default:
-		panic(fmt.Sprintf("Unknown Prompt: %s", p.kind()))
-	}
-}
-
-// generatorsEqual compares two generators
-func generatorsEqual(g1, g2 *Generator) bool {
-	if g1.Help != g2.Help {
-		return false
-	}
-	if len(g1.Prompts) != len(g2.Prompts) {
-		return false
-	}
-	for k, prompt1 := range g1.Prompts {
-		prompt2, ok := g2.Prompts[k]
-		if !ok {
-			return false
-		}
-		if promptSignature(prompt1) != promptSignature(prompt2) {
-			return false
-		}
-	}
-	return true
 }
 
 // string creates human-readable representation of Generator
@@ -89,96 +50,94 @@ var configTests = []struct {
 	ok    bool
 }{
 	// help
-	{"help", conf{"name": "a", "help": "abc"}, Generator{Help: "abc"}, noError},
+	{
+		"help",
+		conf{"help": "abc"},
+		Generator{Help: "abc", Prompts: PromptMap{}},
+		noError,
+	},
 
 	// prompts
 	{
 		"Prompt empty type",
-		conf{"name": "a", "prompts": conf{"var": conf{"type": "", "message": "test"}}},
+		conf{"prompts": conf{"var": conf{"type": "", "message": "test"}}},
 		emptyGen,
 		hasError,
 	},
 	{
 		"Prompt invalid type",
-		conf{"name": "a", "prompts": conf{"var": conf{"type": "invalid", "message": "test"}}},
+		conf{"prompts": conf{"var": conf{"type": "invalid", "message": "test"}}},
 		emptyGen,
 		hasError,
 	},
 	{
 		"Prompt empty message",
-		conf{"name": "a", "prompts": conf{"var": conf{"type": "input", "message": ""}}},
+		conf{"prompts": conf{"var": conf{"type": "input", "message": ""}}},
 		emptyGen,
 		hasError,
 	},
 	{
 		"Prompt message longer than 128 characters",
-		conf{"name": "a", "prompts": conf{"var": conf{"type": "input", "message": strOfLen(129)}}},
+		conf{"prompts": conf{"var": conf{"type": "input", "message": strOfLen(129)}}},
 		emptyGen,
 		hasError,
 	},
 	{
 		"Prompt var name longer than 64 characters",
-		conf{"name": "a", "prompts": conf{strOfLen(65): conf{"type": "input", "message": "test"}}},
+		conf{"prompts": conf{strOfLen(65): conf{"type": "input", "message": "test"}}},
 		emptyGen,
 		hasError,
 	},
 	{
 		"Prompt with valid var name",
-		conf{"name": "a", "prompts": conf{"_Var_1": conf{"type": "input", "message": "test"}}},
+		conf{"prompts": conf{"_Var_1": conf{"type": "input", "message": "test"}}},
 		Generator{Prompts: PromptMap{"_Var_1": &input{Base{Msg: "test"}}}},
 		noError,
 	},
 	{
 		"Prompt with var name starting with digit",
-		conf{"name": "a", "prompts": conf{"0var": conf{"type": "input", "message": "test"}}},
+		conf{"prompts": conf{"0var": conf{"type": "input", "message": "test"}}},
 		emptyGen,
 		hasError,
 	},
 	{
 		"Prompt with var name containing invalid characters",
-		conf{"name": "a", "prompts": conf{"test-var": conf{"type": "input", "message": "test"}}},
+		conf{"prompts": conf{"test-var": conf{"type": "input", "message": "test"}}},
 		emptyGen,
 		hasError,
 	},
 	{
 		"Prompt type input",
-		conf{"name": "a", "prompts": conf{"var": conf{"type": "input", "message": "test"}}},
+		conf{"prompts": conf{"var": conf{"type": "input", "message": "test"}}},
 		Generator{Prompts: PromptMap{"var": &input{Base{Msg: "test"}}}},
 		noError,
 	},
 	{
 		"Prompt help",
-		conf{"name": "a", "prompts": conf{"var": conf{"type": "input", "message": "test", "help": "abc"}}},
+		conf{"prompts": conf{"var": conf{"type": "input", "message": "test", "help": "abc"}}},
 		Generator{Prompts: PromptMap{"var": &input{Base{Msg: "test", HelpText: "abc"}}}},
 		noError,
 	},
 	{
 		"Prompt type integer",
-		conf{"name": "a", "prompts": conf{"var": conf{"type": "input", "message": "test"}}},
+		conf{"name": "a", "prompts": conf{"var": conf{"type": "integer", "message": "test"}}},
 		Generator{Prompts: PromptMap{"var": &integer{Base{Msg: "test"}}}},
 		noError,
 	},
 	{
 		"Prompt type confirm",
-		conf{"name": "a", "prompts": conf{"var": conf{"type": "input", "message": "test"}}},
-		Generator{Prompts: PromptMap{"var": &confirm{Base{Msg: "test"}}}},
-		noError,
-	},
-	{
-		"Prompt type list",
-		conf{"name": "a", "prompts": conf{"var": conf{"type": "list", "message": "test"}}},
+		conf{"prompts": conf{"var": conf{"type": "confirm", "message": "test"}}},
 		Generator{Prompts: PromptMap{"var": &confirm{Base{Msg: "test"}}}},
 		noError,
 	},
 	{
 		"Prompt type choice",
-		conf{"name": "a", "prompts": conf{"var": conf{
+		conf{"prompts": conf{"var": conf{
 			"type":    "choice",
 			"options": []string{"a", "b"},
 			"message": "test",
 		}}},
-		Generator{Prompts: PromptMap{"var":
-		&choice{
+		Generator{Prompts: PromptMap{"var": &choice{
 			Base{Msg: "test"},
 			[]string{"a", "b"},
 		},
@@ -187,7 +146,7 @@ var configTests = []struct {
 	},
 	{
 		"Prompt 'choice' without options",
-		conf{"name": "a", "prompts": conf{"var": conf{
+		conf{"prompts": conf{"var": conf{
 			"type":    "choice",
 			"message": "test",
 		}}},
@@ -196,13 +155,12 @@ var configTests = []struct {
 	},
 	{
 		"Prompt type multi choice",
-		conf{"name": "a", "prompts": conf{"var": conf{
+		conf{"prompts": conf{"var": conf{
 			"type":    "multi-choice",
 			"options": []string{"a", "b"},
 			"message": "test",
 		}}},
-		Generator{Prompts: PromptMap{"var":
-		&multiChoice{
+		Generator{Prompts: PromptMap{"var": &multiChoice{
 			Base{Msg: "test"},
 			[]string{"a", "b"},
 		},
@@ -211,7 +169,7 @@ var configTests = []struct {
 	},
 	{
 		"Prompt 'multi-choice' without options",
-		conf{"name": "a", "prompts": conf{"var": conf{
+		conf{"prompts": conf{"var": conf{
 			"type":    "multi-choice",
 			"message": "test",
 		}}},
@@ -230,22 +188,24 @@ func (r *mockReader) ReadFile(_ string) ([]byte, error) {
 
 func TestConfigReading(t *testing.T) {
 	for _, test := range configTests {
-		buf := new(bytes.Buffer)
-		if err := toml.NewEncoder(buf).Encode(test.input); err != nil {
-			t.Fatalf("%s:\nfailed to encode config data to toml format\nreason: %v", test.name, err)
-			return
-		}
-		gen := &Generator{Prompts: make(PromptMap)}
-		err := gen.ReadConfig(&mockReader{buf.Bytes()})
-		switch {
-		case err == nil && !test.ok:
-			t.Errorf("%s: expected error; got none", test.name)
-		case err != nil && test.ok:
-			t.Errorf("%s: unexpected error: %v", test.name, err)
-		case err != nil && !test.ok:
-			continue // expected error, got one
-		case !generatorsEqual(gen, &test.gen):
-			t.Errorf("%s:\ngot:\n\t%v\nexpected:\n\t%v", test.name, gen.string(), test.gen.string())
-		}
+		t.Run(test.name, func(t *testing.T) {
+			buf := new(bytes.Buffer)
+			if err := toml.NewEncoder(buf).Encode(test.input); err != nil {
+				assert.FailNowf(t, "failed to encode config data to toml format", err.Error())
+				return
+			}
+			gen := &Generator{Prompts: make(PromptMap)}
+			err := gen.ReadConfig(&mockReader{buf.Bytes()})
+			switch {
+			case err == nil && !test.ok:
+				assert.Fail(t, "expected error; got none")
+			case err != nil && test.ok:
+				assert.Failf(t, "unexpected error", err.Error())
+			case err != nil && !test.ok:
+				// expected error, got one
+			default:
+				assert.Equal(t, &test.gen, gen)
+			}
+		})
 	}
 }

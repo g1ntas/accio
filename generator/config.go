@@ -42,8 +42,6 @@ func (m PromptMap) UnmarshalTOML(data interface{}) error {
 			m[key] = &integer{base}
 		case promptConfirm:
 			m[key] = &confirm{base}
-		case promptList:
-			m[key] = &list{base}
 		case promptChoice, promptMultiChoice:
 			opts, err := parsePromptOptions(mapping, key)
 			if err != nil {
