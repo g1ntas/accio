@@ -184,6 +184,7 @@ func TestRunner(t *testing.T) {
 			fs := afero.Afero{Fs: afero.NewMemMapFs()}
 			err := fs.Mkdir("/generator", 0755)
 			require.NoError(t, err)
+
 			// build initial FS structure
 			for _, fsOperation := range test.input {
 				err := fsOperation(fs)
@@ -195,6 +196,7 @@ func TestRunner(t *testing.T) {
 			}
 			err = runner.Run(gen)
 			require.NoError(t, err)
+
 			// assert final FS structure
 			for _, assertion := range test.output {
 				assertion(t, fs)

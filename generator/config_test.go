@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/BurntSushi/toml"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"strings"
 	"testing"
 )
@@ -190,19 +191,16 @@ func TestConfigReading(t *testing.T) {
 	for _, test := range configTests {
 		t.Run(test.name, func(t *testing.T) {
 			buf := new(bytes.Buffer)
-			if err := toml.NewEncoder(buf).Encode(test.input); err != nil {
-				assert.FailNowf(t, "failed to encode config data to toml format", err.Error())
-				return
-			}
+			err := toml.NewEncoder(buf).Encode(test.input)
+			require.NoError(t, err)
+
 			gen := &Generator{Prompts: make(PromptMap)}
-			err := gen.ReadConfig(&mockReader{buf.Bytes()})
+			err = gen.ReadConfig(&mockReader{buf.Bytes()})
 			switch {
-			case err == nil && !test.ok:
-				assert.Fail(t, "expected error; got none")
-			case err != nil && test.ok:
-				assert.Failf(t, "unexpected error", err.Error())
-			case err != nil && !test.ok:
-				// expected error, got one
+			case !test.ok:
+				assert.Error(t, err)
+			case test.ok:
+				assert.NoError(t, err)
 			default:
 				assert.Equal(t, &test.gen, gen)
 			}

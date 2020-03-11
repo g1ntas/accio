@@ -1,12 +1,10 @@
 package blueprint
 
 import (
-	"fmt"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"testing"
 )
-
-// render simple blueprint
-// render blueprint with predefined variable
 
 type data = map[string]interface{}
 
@@ -15,10 +13,6 @@ const (
 	noError  = true
 	newline  = "\n"
 )
-
-func stringify(m *blueprint) string {
-	return fmt.Sprintf("{%q %q %v}", m.Filename, m.Body, m.Skip)
-}
 
 var parseTests = []struct {
 	name      string
@@ -363,22 +357,20 @@ var parseTests = []struct {
 
 func TestParsing(t *testing.T) {
 	for _, test := range parseTests {
-		p, err := NewParser(test.data)
-		if err != nil {
-			t.Fatalf("%s:\nunexpected error: %v", test.name, err)
-			return
-		}
-		blueprint, err := p.Parse([]byte(test.input))
-		switch {
-		case err == nil && !test.ok:
-			t.Errorf("%s\nexpected error; got none", test.name)
-		case err != nil && test.ok:
-			t.Errorf("%s:\nunexpected error: %v", test.name, err)
-		case err != nil && !test.ok:
-			continue // expected error, got one
-		case stringify(blueprint) != stringify(test.blueprint):
-			t.Errorf("%s:\ngot:\n\t%v\nexpected:\n\t%v", test.name, stringify(blueprint), stringify(test.blueprint))
-		}
+		t.Run(test.name, func(t *testing.T) {
+			p, err := NewParser(test.data)
+			require.NoError(t, err)
+
+			bp, err := p.Parse([]byte(test.input))
+			switch {
+			case !test.ok:
+				assert.Error(t, err)
+			case test.ok:
+				assert.NoError(t, err)
+			default:
+				assert.Equal(t, test.blueprint, bp)
+			}
+		})
 	}
 }
 
@@ -398,26 +390,17 @@ var errorTests = []struct {
 
 func TestErrors(t *testing.T) {
 	for _, test := range errorTests {
-		p, err := NewParser(data{})
-		if err != nil {
-			t.Fatalf("%s:\nunexpected error: %v", test.name, err)
-			return
-		}
-		_, err = p.Parse([]byte(test.input))
-		if err == nil {
-			t.Errorf("%s:\nexpected error; got none", test.name)
-			return
-		}
-		e, ok := err.(*ParseError)
-		if !ok {
-			t.Errorf("%s\nexpected *blueprint.ParseError; got %T", test.name, err)
-			return
-		}
-		switch {
-		case e.Tag != test.tag:
-			t.Errorf("%s:\nexpected tag %q; got %q", test.name, test.tag, e.Tag)
-		case e.Line != test.line:
-			t.Errorf("%s:\nexpected line %d; got %d", test.name, test.line, e.Line)
-		}
+		t.Run(test.name, func(t *testing.T) {
+			p, err := NewParser(data{})
+			require.NoError(t, err)
+
+			_, err = p.Parse([]byte(test.input))
+			require.Error(t, err)
+			require.IsType(t, &ParseError{}, err)
+
+			e := err.(*ParseError)
+			assert.Equal(t, test.tag, e.Tag)
+			assert.Equal(t, test.line, e.Line)
+		})
 	}
 }
