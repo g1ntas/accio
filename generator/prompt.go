@@ -24,6 +24,9 @@ var nilValidator = func(val string) error {
 	return nil
 }
 
+var errNotInt = errors.New("value is not a valid integer")
+var errIntOutOfRange = errors.New("integer is too long")
+
 type Prompt interface {
 	kind() string
 	Help() string
@@ -64,22 +67,26 @@ func (p *integer) kind() string {
 }
 
 func (p *integer) Prompt(prompter Prompter) (interface{}, error) {
-	notInt := errors.New("value is not an integer")
-	val, err := prompter.Get(p.Msg, p.HelpText, func(val string) error {
+	var value int
+	_, err := prompter.Get(p.Msg, p.HelpText, func(val string) error {
 		if len(val) == 0 {
-			return notInt
+			return errNotInt
 		}
-		for i, r := range val {
-			if r < '0' || r > '9' || (r == '-' && i != 0) {
-				return notInt
-			}
+		var err error
+		switch value, err = strconv.Atoi(val); {
+		case errors.Is(err, strconv.ErrSyntax):
+			return errNotInt
+		case errors.Is(err, strconv.ErrRange):
+			return errIntOutOfRange
+		case err != nil:
+			return err
 		}
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	return strconv.Atoi(val)
+	return value, nil
 }
 
 // confirm
