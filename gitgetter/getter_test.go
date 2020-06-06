@@ -1,7 +1,7 @@
 package gitgetter
 
 import (
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"testing"
 )
 
@@ -29,7 +29,20 @@ var gitSchemeRemoverTests = []struct {
 func TestGitSchemeRemover(t *testing.T) {
 	for _, test := range gitSchemeRemoverTests {
 		t.Run(test.name, func(t *testing.T) {
-			assert.Equal(t, test.returnedUrl, removeSchemeForGitServiceUrl(test.url))
+			require.Equal(t, test.returnedUrl, removeSchemeForGitServiceUrl(test.url))
 		})
 	}
+}
+
+func TestForcedGitDetectorSuccess(t *testing.T) {
+	d := new(ForcedGitDetector)
+	url, ok, _ := d.Detect("something", "")
+	require.True(t, ok)
+	require.Equal(t, "git::something", url)
+}
+
+func TestForcedGitDetectorWhenEmpty(t *testing.T) {
+	d := new(ForcedGitDetector)
+	_, ok, _ := d.Detect("", "")
+	require.False(t, ok)
 }

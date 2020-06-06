@@ -2,9 +2,7 @@ package generator
 
 import (
 	"bytes"
-	"fmt"
 	"github.com/BurntSushi/toml"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"strings"
 	"testing"
@@ -15,7 +13,7 @@ const (
 	hasError = false
 )
 
-var emptyGen = Generator{}
+var emptyGen = Generator{Prompts: PromptMap{}}
 
 // conf is alias type for config to improve readability
 type conf = map[string]interface{}
@@ -23,25 +21,6 @@ type conf = map[string]interface{}
 // strOfLen generates string of length n
 func strOfLen(n int) string {
 	return strings.Repeat("a", n)
-}
-
-// string creates human-readable representation of Generator
-func (g *Generator) string() string {
-	// shorten help if too long
-	var help string
-	if len(g.Help) > 10 {
-		help = fmt.Sprintf("%.10s...", g.Help)
-	} else {
-		help = g.Help
-	}
-	// stringify prompts in format [var]:[type]
-	prompts := make([]string, len(g.Prompts))
-	i := 0
-	for k, p := range g.Prompts {
-		prompts[i] = k + ":" + p.kind()
-		i++
-	}
-	return fmt.Sprintf("%q %v", help, prompts)
 }
 
 var configTests = []struct {
@@ -196,14 +175,12 @@ func TestConfigReading(t *testing.T) {
 
 			gen := &Generator{Prompts: make(PromptMap)}
 			err = gen.ReadConfig(&mockReader{buf.Bytes()})
-			switch {
-			case !test.ok:
-				assert.Error(t, err)
-			case test.ok:
-				assert.NoError(t, err)
-			default:
-				assert.Equal(t, &test.gen, gen)
+			if test.ok {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
 			}
+			require.Equal(t, &test.gen, gen)
 		})
 	}
 }

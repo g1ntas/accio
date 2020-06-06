@@ -122,6 +122,12 @@ var runnerTests = []struct {
 		skipExisting,
 	},
 	{
+		"blueprint | write to root",
+		[]fsOpFn{file("/generator/abc/test.txt.accio", `{"filename": "custom.txt"}`)},
+		[]assertFn{fileExists("/output/custom.txt", "")},
+		skipExisting,
+	},
+	{
 		"overwrite if file exists",
 		[]fsOpFn{file("/generator/test.txt", "new"), file("/output/test.txt", "old")},
 		[]assertFn{fileExists("/output/test.txt", "new")},

@@ -64,6 +64,14 @@ var lexTests = []lexTest{
 		mkToken(tokenIdentifier, "tag-1"),
 		tEOF,
 	}},
+	{"double dash within tag", "tag--1", []token{
+		mkToken(tokenIdentifier, "tag--1"),
+		tEOF,
+	}},
+	{"uppercasee tag", "TAG", []token{
+		mkToken(tokenIdentifier, "TAG"),
+		tEOF,
+	}},
 	{"reserved tag full-name", "delimiters", []token{
 		tDelimiters,
 		tEOF,
@@ -412,9 +420,9 @@ func lexDelimTests(leftDelim, rightDelim string) []lexTest {
 	}
 }
 
-var customDelimiters = []struct{
+var customDelimiters = []struct {
 	left, right string
-} {
+}{
 	{"{{", "}"},
 	{"[", "]]"},
 	{"\u4e16", "\u754c"},

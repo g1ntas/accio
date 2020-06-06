@@ -35,6 +35,16 @@ var parseTests = []struct {
 		noError,
 	},
 	{
+		"template with nested partial",
+		`` +
+			`partial -name="workTime" <<9 to 5>>` + newline +
+			`partial -name="sentence" <<working {{> workTime}}>>` + newline +
+			`template <<{{sentence}}>>`,
+		data{},
+		&blueprint{Body: "working 9 to 5"},
+		noError,
+	},
+	{
 		"partial with global variable",
 		`` +
 			`partial -name="partial" <<{{var}}>>` + newline +
