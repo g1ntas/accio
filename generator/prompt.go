@@ -44,7 +44,6 @@ func (p *Base) Help() string {
 	return p.HelpText
 }
 
-// input
 type input struct {
 	Base
 }
@@ -57,7 +56,6 @@ func (p *input) Prompt(prompter Prompter) (interface{}, error) {
 	return prompter.Get(p.Msg, p.HelpText, nilValidator)
 }
 
-// integer
 type integer struct {
 	Base
 }
@@ -89,7 +87,6 @@ func (p *integer) Prompt(prompter Prompter) (interface{}, error) {
 	return value, nil
 }
 
-// confirm
 type confirm struct {
 	Base
 }
@@ -102,7 +99,6 @@ func (p *confirm) Prompt(prompter Prompter) (interface{}, error) {
 	return prompter.Confirm(p.Msg, p.HelpText)
 }
 
-// choice
 type choice struct {
 	Base
 	options []string
@@ -116,7 +112,6 @@ func (p *choice) Prompt(prompter Prompter) (interface{}, error) {
 	return prompter.SelectOne(p.Msg, p.HelpText, p.options)
 }
 
-// multiChoice
 type multiChoice struct {
 	Base
 	options []string

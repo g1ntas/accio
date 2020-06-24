@@ -42,7 +42,7 @@ var integerTests = []struct {
 	{"short int", "1", 1},
 	{"negative int", "-1", -1},
 	{"positive signed int", "+1", 1},
-	{"long int", "12345678900", 12345678900},
+	{"int64", "1234567890123456789", 1234567890123456789},
 	{"too long int", "12345678901234567890", errIntOutOfRange},
 	{"invalid int", "123-456", errNotInt},
 	{"empty value", "", errNotInt},

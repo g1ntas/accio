@@ -9,25 +9,26 @@ import (
 // attribute names for reserved 'delimiters' tag
 const (
 	attrDelimitersLeft  = "left"
-	attrDelimitersRight  = "right"
+	attrDelimitersRight = "right"
 )
 
-// TagNode todo
+// TagNode represents a single tag within the document.
 type TagNode struct {
 	Attributes map[string]*AttrNode
-	Body *Body
-	Name string
-	Line int
+	Body       *Body
+	Name       string
+	Line       int
 }
 
+// Body represents a body of the tag.
 type Body struct {
 	Content string
-	Inline bool
+	Inline  bool
 }
 
-// AttrNode todo
+// AttrNode represents single attribute within the tag.
 type AttrNode struct {
-	Name string
+	Name  string
 	Value string
 }
 
@@ -39,14 +40,15 @@ func (p Pos) Position() Pos {
 	return p
 }
 
-// Parser is the representation of a single parsed template.
+// Parser is the representation of a single parsed document.
+// It keeps all parsed tags in a list.
 type Parser struct {
 	Tags []*TagNode // list of nodes of the tree.
 	text string     // text parsed to create the template.
 	// For parsing only; cleared after parse.
-	lex *lexer
-	token token  // token currently being parsed.
-	tag *TagNode // tag currently being built.
+	lex   *lexer
+	token token    // token currently being parsed.
+	tag   *TagNode // tag currently being built.
 }
 
 // parseStateFn represents the state of the parser as a function that returns the next state.
@@ -59,7 +61,6 @@ func Parse(text, leftDelim, rightDelim string) (p *Parser, err error) {
 	return
 }
 
-// NewParser constructs new parser.
 func NewParser() *Parser {
 	p := &Parser{}
 	return p
@@ -142,7 +143,6 @@ func finishParsingTag(p *Parser) parseStateFn {
 	}
 }
 
-// parseAttrOrBody todo
 func parseAttrOrBody(p *Parser) parseStateFn {
 	switch token := p.next(); token.typ {
 	case tokenEOF, tokenNewline:
@@ -156,7 +156,6 @@ func parseAttrOrBody(p *Parser) parseStateFn {
 	}
 }
 
-// parseDelimitersTag todo
 func parseDelimitersTag(p *Parser) parseStateFn {
 	if len(p.Tags) > 0 {
 		return p.errorf("reserved tag %s is not allowed here, it must be defined before all other tags", p.token)
@@ -164,7 +163,6 @@ func parseDelimitersTag(p *Parser) parseStateFn {
 	return parseDelimiterAttrs
 }
 
-// parseDelimiterAttr todo
 func parseDelimiterAttrs(p *Parser) parseStateFn {
 	attrs := make(map[string]string, 2)
 	for p.next().typ == tokenAttrDeclare {
@@ -190,14 +188,13 @@ func parseDelimiterAttrs(p *Parser) parseStateFn {
 	return parseTemplate
 }
 
-// parseAttr todo
 func parseAttr(p *Parser) parseStateFn {
 	name, value := p.scanAttr()
 	if _, exists := p.tag.Attributes[name]; exists {
 		return p.errorf("attribute '%s' already exists for this tag", name)
 	}
 	p.tag.Attributes[name] = &AttrNode{
-		Name: name,
+		Name:  name,
 		Value: value,
 	}
 	return parseAttrOrBody
@@ -225,7 +222,6 @@ func (p *Parser) scanAttr() (string, string) {
 	return name, value
 }
 
-// parseBody todo
 func parseBody(p *Parser) parseStateFn {
 	p.tag.Body = &Body{}
 	switch token := p.next(); token.typ {
@@ -277,7 +273,7 @@ func unquoteString(s string) (string, error) {
 	if s[0:1] != "\"" || s[l-1:] != "\"" {
 		return "", fmt.Errorf("value is expected to be surrounded with quotes")
 	}
-	return s[1:l-1], nil
+	return s[1 : l-1], nil
 }
 
 // containsInvisibleChars checks whether string contains any character

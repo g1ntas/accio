@@ -5,25 +5,25 @@ import (
 	"testing"
 )
 
-func inlineBody(s string) *Body{
+func inlineBody(s string) *Body {
 	return &Body{s, true}
 }
-func multilineBody(s string) *Body{
+func multilineBody(s string) *Body {
 	return &Body{s, false}
 }
 
 const (
-	noError = true
+	noError  = true
 	hasError = false
 )
 
 var emptyAst []*TagNode
 var parseTests = []struct {
-	name string
+	name  string
 	input string
-	ok bool
-	ast []*TagNode
-} {
+	ok    bool
+	ast   []*TagNode
+}{
 	{"empty", "", noError, emptyAst},
 	{"whitespace", " \n\t", noError, emptyAst},
 	{"comments", "# this is a comment", noError, emptyAst},
@@ -115,21 +115,21 @@ tag [[
 	{"invalid character within tag identifier", "t*g", hasError, emptyAst},
 	{"dash at the start of the tag", "-tag", hasError, emptyAst},
 	{"dash at the end of the tag", "tag-", hasError, emptyAst},
-	{"tag must start on newline",  " tag", hasError, emptyAst},
-	{"invalid char at the start of attr full-name",  `tag -*="test"`, hasError, emptyAst},
-	{"dash at the start of attr full-name",  `tag --attr="test"`, hasError, emptyAst},
-	{"invalid char within attr full-name",  `tag -at*r="test"`, hasError, emptyAst},
-	{"dash at the end of attr",  `tag -attr-="test"`, hasError, emptyAst},
-	{"attr without assignment",  `tag -attr`, hasError, emptyAst},
-	{"attr without value",  `tag -attr=`, hasError, emptyAst},
-	{"unclosed attr quotes",  `tag -attr="`, hasError, emptyAst},
-	{"delimiter after tag without space",  `tag<<>>`, hasError, emptyAst},
-	{"unmatched inline body delimiter",  `tag << >`, hasError, emptyAst},
-	{"unmatched multiline body delimiter",  "tag <<\n\n>", hasError, emptyAst},
-	{"invalid char after body right delimiter",  "tag <<>>>", hasError, emptyAst},
-	{"whitespace before multiline right delimiter",  "tag <<\n\n\t>>", hasError, emptyAst},
-	{"left delimiter on newline",  "tag\n<<", hasError, emptyAst},
-	{"attr on newline",  "tag\n-attr", hasError, emptyAst},
+	{"tag must start on newline", " tag", hasError, emptyAst},
+	{"invalid char at the start of attr full-name", `tag -*="test"`, hasError, emptyAst},
+	{"dash at the start of attr full-name", `tag --attr="test"`, hasError, emptyAst},
+	{"invalid char within attr full-name", `tag -at*r="test"`, hasError, emptyAst},
+	{"dash at the end of attr", `tag -attr-="test"`, hasError, emptyAst},
+	{"attr without assignment", `tag -attr`, hasError, emptyAst},
+	{"attr without value", `tag -attr=`, hasError, emptyAst},
+	{"unclosed attr quotes", `tag -attr="`, hasError, emptyAst},
+	{"delimiter after tag without space", `tag<<>>`, hasError, emptyAst},
+	{"unmatched inline body delimiter", `tag << >`, hasError, emptyAst},
+	{"unmatched multiline body delimiter", "tag <<\n\n>", hasError, emptyAst},
+	{"invalid char after body right delimiter", "tag <<>>>", hasError, emptyAst},
+	{"whitespace before multiline right delimiter", "tag <<\n\n\t>>", hasError, emptyAst},
+	{"left delimiter on newline", "tag\n<<", hasError, emptyAst},
+	{"attr on newline", "tag\n-attr", hasError, emptyAst},
 }
 
 func astEqual(ast1, ast2 []*TagNode) bool {

@@ -26,8 +26,8 @@ func (c *Client) CloneRepository(ctx context.Context, src, dst string) error {
 			new(ForcedGitDetector),
 		},
 		Getters: map[string]getter.Getter{
-			"git": gitGetter,
-			"http": gitGetter,
+			"git":   gitGetter,
+			"http":  gitGetter,
 			"https": gitGetter,
 		},
 	}

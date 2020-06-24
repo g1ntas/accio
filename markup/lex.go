@@ -14,18 +14,18 @@ import (
 type tokenType int
 
 const (
-	tokenError       tokenType = iota // error occurred; value is text of error
-	tokenEOF                          // end of file
-	tokenNewline                      // newline
-	tokenIdentifier                   // identity for tags and attributes
-	tokenLeftDelim                    // body opening delimiter
-	tokenRightDelim                   // body closing delimiter
-	tokenString                       // string literal
-	tokenInlineBody                   // raw inline tag body text between left and right delimiters
-	tokenMultilineBody                // raw multiline tag body text between left and right delimiters
-	tokenAttrDeclare                  // dash ('-') introducing an attribute declaration
-	tokenAssign                       // equals sign ('=') introducing an attribute assignment
-	tokenDelimiters                   // reserved tag keyword 'delimiters'
+	tokenError         tokenType = iota // error occurred; value is text of error
+	tokenEOF                            // end of file
+	tokenNewline                        // newline
+	tokenIdentifier                     // identity for tags and attributes
+	tokenLeftDelim                      // body opening delimiter
+	tokenRightDelim                     // body closing delimiter
+	tokenString                         // string literal
+	tokenInlineBody                     // raw inline tag body text between left and right delimiters
+	tokenMultilineBody                  // raw multiline tag body text between left and right delimiters
+	tokenAttrDeclare                    // dash ('-') introducing an attribute declaration
+	tokenAssign                         // equals sign ('=') introducing an attribute assignment
+	tokenDelimiters                     // reserved tag keyword 'delimiters'
 )
 
 const eof = -1

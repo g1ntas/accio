@@ -34,7 +34,7 @@ func execute(content string, ctx *context) (starlark.Value, error) {
 	return val, nil
 }
 
-// wrapScript wraps starlark code within function, so it can be executed independently.
+// wrapScript wraps starlark code within a function, so it can be executed independently.
 func wrapScript(c string) string {
 	return fmt.Sprintf("def impl():\n%s\n", c)
 }

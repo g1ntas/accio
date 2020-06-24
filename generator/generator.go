@@ -165,7 +165,11 @@ func NewRunner(fs Filesystem, mp BlueprintParser, dir string, options ...func(*R
 	return r
 }
 
-// todo: write docs
+// Run executes provided generator by walking over each regular file,
+// reading it and writing it at relative path in working directory.
+// If file ends with extension `.accio`, then it's parsed with
+// BlueprintParser, which returns file's content and additional metadata,
+// like custom filepath, and whether file should be skipped.
 func (r *Runner) Run(generator *Generator) error {
 	return r.fs.Walk(generator.Dest, func(abspath string, info os.FileInfo, err error) error {
 		if err != nil {

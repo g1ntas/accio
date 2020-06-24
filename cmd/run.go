@@ -19,7 +19,6 @@ import (
 	"sync"
 )
 
-// runCmd represents the run command
 var runCmd = &cobra.Command{
 	Use:   "run [generator]",
 	Short: "Run a generator from given url",
@@ -30,7 +29,7 @@ var runCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		defer Close(closer)
+		defer closeGracefully(closer)
 		err = gen.ReadConfig(env.fs)
 		if err != nil {
 			return err
@@ -86,20 +85,24 @@ func fetchGeneratorFromUrl(src string) (*generator.Generator, io.Closer, error) 
 	dst = filepath.Join(dst, "tmp") // work around for https://github.com/hashicorp/go-getter/issues/114
 	err = cloneRepo(src, dst)
 	if err != nil {
-		Close(closer)
+		closeGracefully(closer)
 		return nil, nil, err
 	}
 	gen := generator.NewGenerator(dst)
 	return gen, closer, nil
 }
 
-func Close(c io.Closer) {
+func closeGracefully(c io.Closer) {
 	if err := c.Close(); err != nil {
 		printErr(err)
 		os.Exit(1)
 	}
 }
 
+// generatorHelpFunc defines run command's help behaviour.
+// When --help flag is provided together with at least single argument,
+// generator will be parsed and help text from configuration file will be shown.
+// In case of no arguments, default help behaviour will be executed.
 func generatorHelpFunc(cmd *cobra.Command, args []string) {
 	if err := cmd.ValidateArgs(cmd.Flags().Args()); err != nil {
 		cmd.Root().HelpFunc()(cmd, args)
@@ -111,7 +114,7 @@ func generatorHelpFunc(cmd *cobra.Command, args []string) {
 		fmt.Println(cmd.UsageString())
 		return
 	}
-	defer Close(closer)
+	defer closeGracefully(closer)
 	err = gen.ReadConfig(env.fs)
 	if err != nil {
 		printErr(err)

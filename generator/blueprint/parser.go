@@ -26,7 +26,8 @@ type context struct {
 	partials map[string]string
 }
 
-// newContext creates new context with predefined starlark data.
+// newContext creates a context with provided data, and
+// transforms that data to starlark compatible data types.
 func newContext(data map[string]interface{}) (context, error) {
 	ctx := context{
 		vars:     make(map[string]starlark.Value),
@@ -58,7 +59,7 @@ func (ctx context) copy() context {
 	return ctx
 }
 
-// varsToDict returns variables as starlark dictionary.
+// varsDict returns context variables as starlark dictionary.
 func (ctx *context) varsDict() (*starlark.Dict, error) {
 	dict := starlark.NewDict(len(ctx.vars))
 	for k, v := range ctx.vars {
@@ -70,7 +71,7 @@ func (ctx *context) varsDict() (*starlark.Dict, error) {
 	return dict, nil
 }
 
-// varsToGoMap returns variables as go map.
+// varsGoMap returns context variables as golang map.
 func (ctx *context) varsGoMap() (map[string]interface{}, error) {
 	m := make(map[string]interface{})
 	for k, v := range ctx.vars {
