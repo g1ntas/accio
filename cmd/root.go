@@ -19,13 +19,17 @@ type environment struct {
 // rootCmd represents the base command, which can be executed by running executable without any arguments.
 var rootCmd = &cobra.Command{
 	Use:   "accio",
-	Short: "A brief description of your application",
-	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
+	Short: "Accio is a flexible framework for boilerplate code generators.",
+	Long: `Accio is a flexible framework for boilerplate code generators.
+It is designed with readability in mind because logic-full 
+templates are hard to maintain. Its modular approach to 
+templates makes it easy and fun to work with, and the possibility 
+to script - just powerful enough to handle most edge-cases.
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+For documentation on how to create new generators, go to the 
+official project repository at https://github.com/g1ntas/accio.
+
+`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
 }

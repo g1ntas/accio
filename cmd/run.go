@@ -21,8 +21,31 @@ import (
 
 var runCmd = &cobra.Command{
 	Use:   "run [generator]",
-	Short: "Run a generator from given url",
-	Long:  ``,
+	Short: "Run a generator from directory or git repository",
+	Long:  `Executes generator writing all generated files at the current 
+directory, unless specified otherwise. If the generator has 
+any prompts configured, then they will be prompted first.
+
+Command accepts a single required argument specifying the 
+location of the generator. Location can be either a path 
+to a local directory or an URL to a git repository.
+
+For git repository URLs:
+  Conditions:
+  - Git client is required, which must be registered in a 
+    PATH environment variable and be accessible as 'git' 
+    executable;
+  - HTTP, HTTPS, and SSH protocols are supported. 
+    SSH protocol is only limited to username 'git', 
+    e.g. 'git@github.com'.
+
+  Subdirectories are supported and can be specified after 
+  double-slash '//'. In the case of 'github.com' or 
+  'bitbucket.org', only a single slash '/' can be used.
+  
+  Example:
+  github.com/g1ntas/accio/examples/open-source-license
+`,
 	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		gen, closer, err := fetchGeneratorFromUrl(args[0])
