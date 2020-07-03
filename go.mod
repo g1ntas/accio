@@ -8,6 +8,7 @@ require (
 	github.com/cbroglie/mustache v1.1.0
 	github.com/hashicorp/go-getter v1.4.1
 	github.com/hashicorp/go-safetemp v1.0.0
+	github.com/magefile/mage v1.9.0
 	github.com/spf13/afero v1.2.2
 	github.com/spf13/cobra v1.0.0
 	github.com/stretchr/testify v1.6.1
