@@ -1,12 +1,9 @@
-package cmd
+package main
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/g1ntas/accio/generator"
-	"github.com/g1ntas/accio/generator/blueprint"
-	"github.com/g1ntas/accio/gitgetter"
 	"github.com/hashicorp/go-safetemp"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
@@ -17,6 +14,10 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/g1ntas/accio/generator"
+	"github.com/g1ntas/accio/generator/blueprint"
+	"github.com/g1ntas/accio/gitgetter"
 )
 
 var runCmd = &cobra.Command{

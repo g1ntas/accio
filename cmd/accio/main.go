@@ -1,11 +1,12 @@
-package cmd
+package main
 
 import (
 	"fmt"
-	"github.com/g1ntas/accio/prompter"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	"os"
+
+	"github.com/g1ntas/accio/prompter"
 )
 
 // env holds dependencies and settings that represents environment for app implementation.
@@ -34,10 +35,9 @@ official project repository at https://github.com/g1ntas/accio.
 	SilenceErrors: true,
 }
 
-// Execute adds all child commands to the root command and sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the rootCmd.
+// main adds all child commands to the root command and sets flags appropriately.
 // In addition, it handles errors returned by inner commands by printing them.
-func Execute() {
+func main() {
 	env.fs = afero.Afero{Fs: afero.NewOsFs()}
 	env.prompter = prompter.NewCLIPrompter(os.Stdin, os.Stdout, os.Stderr)
 	if cmd, err := rootCmd.ExecuteC(); err != nil {
