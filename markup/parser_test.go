@@ -69,21 +69,22 @@ var parseTests = []struct {
 	}},
 	{"multiple tags with attributes and body",
 		`tag -attr="1" <<this is first body>>` + "\n" + `tag -attr="2" <<this is second body>>`, noError, []*TagNode{
-		{
-			Name: "tag",
-			Body: inlineBody("this is first body"),
-			Attributes: map[string]*AttrNode{
-				"attr": {Name: "attr", Value: "1"},
+			{
+				Name: "tag",
+				Body: inlineBody("this is first body"),
+				Attributes: map[string]*AttrNode{
+					"attr": {Name: "attr", Value: "1"},
+				},
+			},
+			{
+				Name: "tag",
+				Body: inlineBody("this is second body"),
+				Attributes: map[string]*AttrNode{
+					"attr": {Name: "attr", Value: "2"},
+				},
 			},
 		},
-		{
-			Name: "tag",
-			Body: inlineBody("this is second body"),
-			Attributes: map[string]*AttrNode{
-				"attr": {Name: "attr", Value: "2"},
-			},
-		},
-	}},
+	},
 
 	// reserved delimiters tag
 	{"delimiters tag | inline body with custom delimiters", `
@@ -108,7 +109,6 @@ tag [[
 	{"delimiters tag | only left attr", `delimiters -left="{"`, hasError, []*TagNode{}},
 	{"delimiters tag | only right attr", `delimiters -right="}"`, hasError, []*TagNode{}},
 	{"delimiters tag | invalid attr", `delimiters -attr="test"`, hasError, []*TagNode{}},
-
 
 	// lexer errors
 	{"invalid character", "*", hasError, emptyAst},

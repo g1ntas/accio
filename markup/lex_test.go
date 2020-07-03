@@ -345,8 +345,8 @@ var lexTests = []lexTest{
 }
 
 // collect gathers the emitted tokens into a slice
-func collect(t *lexTest, left, right string) (tokens []token) {
-	lx := lex(t.input, left, right)
+func collect(input, left, right string) (tokens []token) {
+	lx := lex(input, left, right)
 	for {
 		token := lx.nextToken()
 		tokens = append(tokens, token)
@@ -380,7 +380,7 @@ func equal(t1, t2 []token, checkPos bool) bool {
 
 func TestLex(t *testing.T) {
 	for _, test := range lexTests {
-		tokens := collect(&test, "", "")
+		tokens := collect(test.input, "", "")
 		if !equal(tokens, test.tokens, false) {
 			t.Errorf("%s:\ngot\n\t%+v\nexpected\n\t%v", test.name, tokens, test.tokens)
 		}
@@ -437,7 +437,7 @@ var customDelimiters = []struct {
 func TestDelims(t *testing.T) {
 	for _, delim := range customDelimiters {
 		for _, test := range lexDelimTests(delim.left, delim.right) {
-			tokens := collect(&test, delim.left, delim.right)
+			tokens := collect(test.input, delim.left, delim.right)
 			if !equal(tokens, test.tokens, false) {
 				t.Errorf("%s:\ngot\n\t%+v\nexpected\n\t%v", test.name, tokens, test.tokens)
 			}
@@ -469,7 +469,7 @@ var lexPosTests = []lexTest{
 // Test token positions.
 func TestPos(t *testing.T) {
 	for _, test := range lexPosTests {
-		tokens := collect(&test, "", "")
+		tokens := collect(test.input, "", "")
 		if !equal(tokens, test.tokens, true) {
 			t.Errorf("%s:\ngot\n\t%+v\nexpected\n\t%v", test.name, tokens, test.tokens)
 			if len(tokens) == len(test.tokens) {

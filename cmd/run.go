@@ -22,7 +22,7 @@ import (
 var runCmd = &cobra.Command{
 	Use:   "run [generator]",
 	Short: "Run a generator from directory or git repository",
-	Long:  `Executes generator writing all generated files at the current 
+	Long: `Executes generator writing all generated files at the current 
 directory, unless specified otherwise. If the generator has 
 any prompts configured, then they will be prompted first.
 
@@ -46,7 +46,7 @@ For git repository URLs:
   Example:
   github.com/g1ntas/accio/examples/open-source-license
 `,
-	Args:  cobra.MinimumNArgs(1),
+	Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		gen, closer, err := fetchGeneratorFromUrl(args[0])
 		if err != nil {
@@ -156,7 +156,7 @@ func generatorHelpFunc(cmd *cobra.Command, args []string) {
 }
 
 func filesystem(cmd *cobra.Command) afero.Afero {
-	if cmd.Flag("dry").Value.String() == "true" {
+	if getBoolFlag(cmd, "dry") {
 		roBase := afero.NewReadOnlyFs(env.fs.Fs)
 		ufs := afero.NewCopyOnWriteFs(roBase, afero.NewMemMapFs())
 		return afero.Afero{Fs: ufs}
@@ -165,7 +165,7 @@ func filesystem(cmd *cobra.Command) afero.Afero {
 }
 
 func existingFileHandler(cmd *cobra.Command) generator.OnExistsFn {
-	force := cmd.Flag("force").Value.String() == "true"
+	force := getBoolFlag(cmd, "force")
 	return func(path string) bool {
 		if force {
 			return true
@@ -181,7 +181,7 @@ func existingFileHandler(cmd *cobra.Command) generator.OnExistsFn {
 }
 
 func errorHandler(cmd *cobra.Command) generator.OnErrorFn {
-	ignoreErr := cmd.Flag("ignore-errors").Value.String() == "true"
+	ignoreErr := getBoolFlag(cmd, "ignore-errors")
 	return func(err error) bool {
 		if ignoreErr {
 			printErr(fmt.Errorf("%w. Skipping...", err))
@@ -190,14 +190,14 @@ func errorHandler(cmd *cobra.Command) generator.OnErrorFn {
 	}
 }
 
-func successHandler(cmd *cobra.Command) generator.OnSuccessFn {
+func successHandler(_ *cobra.Command) generator.OnSuccessFn {
 	return func(_, dst string) {
 		fmt.Printf("[SUCCESS] %s created.\n", dst)
 	}
 }
 
 func workingDir(cmd *cobra.Command) (string, error) {
-	dir := cmd.Flag("working-dir").Value.String()
+	dir := getStringFlag(cmd, "working-dir")
 	if dir != "" {
 		return dir, nil
 	}
@@ -244,7 +244,7 @@ func cloneRepo(src, dst string) error {
 			errChan <- err
 		}
 	}()
-	c := make(chan os.Signal)
+	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
 	select {
 	case sig := <-c:

@@ -49,20 +49,11 @@ func removeSchemeForGitServiceUrl(src string) string {
 	if len(src) == 0 {
 		return src
 	}
-	var uri string
-	switch {
-	case strings.HasPrefix(src, "http://"):
-		uri = src[7:]
-	case strings.HasPrefix(src, "https://"):
-		uri = src[8:]
-	default:
-		return src
+	uri := strings.TrimPrefix(src, "http://")
+	uri = strings.TrimPrefix(uri, "https://")
+	uri = strings.TrimPrefix(uri, "www.")
+	if strings.HasPrefix(uri, "github.com/") || strings.HasPrefix(uri, "bitbucket.org/") {
+		return uri
 	}
-	if strings.HasPrefix(uri, "www.") {
-		uri = uri[4:]
-	}
-	if !strings.HasPrefix(uri, "github.com/") && !strings.HasPrefix(uri, "bitbucket.org/") {
-		return src
-	}
-	return uri
+	return src
 }

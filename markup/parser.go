@@ -254,7 +254,6 @@ func (p *Parser) next() token {
 func (p *Parser) errorf(format string, args ...interface{}) parseStateFn {
 	format = fmt.Sprintf("%s at line %d", format, p.token.line)
 	panic(fmt.Errorf(format, args...))
-	return nil
 }
 
 // error terminates processing with error.
