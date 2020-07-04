@@ -1,5 +1,8 @@
 language: go
 
+git:
+  autocrlf: false
+
 env:
   global:
     - GO111MODULE=on
@@ -23,7 +26,6 @@ jobs:
       os: windows
 
 install:
-  - git config --system core.autocrlf false
   - curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.26.0
   - go get github.com/magefile/mage
 
