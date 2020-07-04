@@ -1,0 +1,32 @@
+language: go
+
+env:
+  global:
+    - GO111MODULE=on
+
+go: 1.14.x
+
+arch:
+  - amd64
+  - arm64
+
+os:
+  - linux
+  - osx
+  - windows
+
+jobs:
+  exclude:
+    - arch: arm64
+      os: osx
+    - arch: arm64
+      os: windows
+
+install:
+  - curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.27.0
+  - go get github.com/magefile/mage
+
+script:
+  - go mod download
+  - go mod verify
+  - mage -v check
