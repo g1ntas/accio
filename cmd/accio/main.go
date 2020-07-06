@@ -35,11 +35,14 @@ official project repository at https://github.com/g1ntas/accio.
 	SilenceErrors: true,
 }
 
+func init() {
+	env.fs = afero.Afero{Fs: afero.NewOsFs()}
+	env.prompter = prompter.NewCLIPrompter(os.Stdin, os.Stdout, os.Stderr)
+}
+
 // main adds all child commands to the root command and sets flags appropriately.
 // In addition, it handles errors returned by inner commands by printing them.
 func main() {
-	env.fs = afero.Afero{Fs: afero.NewOsFs()}
-	env.prompter = prompter.NewCLIPrompter(os.Stdin, os.Stdout, os.Stderr)
 	if cmd, err := rootCmd.ExecuteC(); err != nil {
 		if cmd == nil {
 			printErr(err)
