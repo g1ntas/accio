@@ -59,16 +59,19 @@ func (m PromptMap) UnmarshalTOML(data interface{}) error {
 	return nil
 }
 
-func parsePromptOptions(conf map[string]interface{}, key string) (options []string, err error) {
+func parsePromptOptions(conf map[string]interface{}, key string) ([]string, error) {
 	opts, ok := conf["options"].([]interface{})
 	if !ok || len(opts) == 0 {
-		return []string{}, fmt.Errorf("no options were specified for prompt %q", key)
+		return []string{}, fmt.Errorf("options for prompt %q were not specified or are invalid", key)
 	}
-	options = make([]string, len(opts))
+	options := make([]string, len(opts))
 	for i, v := range opts {
-		options[i] = v.(string)
+		options[i], ok = v.(string)
+		if !ok {
+			return []string{}, fmt.Errorf("encountered non-string element while parsing options for prompt %q, make sure that all options are of type string", key)
+		}
 	}
-	return
+	return options, nil
 }
 
 func validatePromptKey(k string) error {

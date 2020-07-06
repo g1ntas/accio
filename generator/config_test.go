@@ -134,6 +134,26 @@ var configTests = []struct {
 		hasError,
 	},
 	{
+		"Prompt 'choice' with non-string options",
+		conf{"prompts": conf{"var": conf{
+			"type":    "choice",
+			"message": "test",
+			"options": []int{1, 2, 3},
+		}}},
+		emptyGen,
+		hasError,
+	},
+	{
+		"Prompt 'choice' with non-array options",
+		conf{"prompts": conf{"var": conf{
+			"type":    "choice",
+			"message": "test",
+			"options": "invalid data type",
+		}}},
+		emptyGen,
+		hasError,
+	},
+	{
 		"Prompt type multi choice",
 		conf{"prompts": conf{"var": conf{
 			"type":    "multi-choice",
