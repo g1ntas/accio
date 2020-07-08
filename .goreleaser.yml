@@ -57,7 +57,7 @@ archives:
       format: zip
 
 brews:
-- github:
+- tap:
     owner: g1ntas
     name: homebrew-tap
   folder: Formula
