@@ -1,0 +1,35 @@
+# Extract app name from the module path, which should be last part of the path
+variable -name="appName" <<
+    return vars['modulePath'].rsplit("/", 1)[1]
+>>
+
+# Rewrite path from `cmd/main.go` to `cmd/{appName}/main.go`
+filename <<
+    return "cmd/"+vars['appName']+"/main.go"
+>>
+
+template <<
+package main
+
+import (
+	"fmt"
+	"github.com/spf13/cobra"
+	"os"
+)
+
+// rootCmd represents the base command, which can be executed by running executable without any arguments.
+var rootCmd = &cobra.Command{
+	Use:           "{{appName}}",
+	Short:         "{{description}}",
+	Long:          "",
+}
+
+func main() {
+	_, err := rootCmd.ExecuteC()
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+}
+
+>>

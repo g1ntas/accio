@@ -1,0 +1,85 @@
+##### Split comma-separated versions into list
+variable -name="versions" <<
+    versions = vars['versions'].split(',')
+    versions = [x.strip() for x in versions] # Trim whitespace for each version in list
+
+    # In case of no versions return empty list
+    if len(versions) == 1 and len(versions[0]) == 0:
+        versions = []
+
+    return versions
+>>
+
+
+##### Check if Windows OS is selected
+variable -name="isWindowsSelected" <<
+    return 'windows' in vars['operatingSystems']
+>>
+
+
+##### Render golang versions setting
+partial -name="versions" <<
+go:
+{{#versions}}
+  - '{{.}}'
+{{/versions}}
+{{^versions}}
+  - 'stable'
+{{/versions}}
+>>
+
+
+##### Render architectures setting
+partial -name="arch" <<
+arch:
+{{#cpuArchs}}
+  - {{.}}
+{{/cpuArchs}}
+{{^cpuArchs}}
+  - amd64
+{{/cpuArchs}}
+>>
+
+
+##### Render operating systems setting
+partial -name="os" <<
+os:
+{{#operatingSystems}}
+  - {{.}}
+{{/operatingSystems}}
+{{^operatingSystems}}
+  - linux
+{{/operatingSystems}}
+>>
+
+
+##### Render git tag with autocrlf setting disabled when Windows build is enabled
+partial -name="git" <<
+{{#isWindowsSelected}}
+git:
+  autocrlf: false
+
+{{/isWindowsSelected}}
+>>
+
+
+##### Render final configuration file
+template <<
+language: go
+
+{{> git}}
+env:
+  global:
+    - GO111MODULE=on
+
+{{> versions}}
+
+{{> arch}}
+
+{{> os}}
+
+script:
+  - go mod download
+  - go mod verify
+  - go test ./...
+>>

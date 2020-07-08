@@ -1,0 +1,25 @@
+help="""
+Boilerplate for a new golang CLI project
+"""
+
+[prompts.modulePath]
+type="input"
+message="Enter golang module path:"
+help="""
+Unique path, which will be used to import project packages.
+
+Example: github.com/username/project-name
+"""
+
+[prompts.goVersion]
+type="input"
+message="Enter golang version:"
+help="""
+Golang version used to compile project.
+
+Example: 1.14
+"""
+
+[prompts.description]
+type="input"
+message="Enter short description of the project:"

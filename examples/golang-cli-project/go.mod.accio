@@ -1,0 +1,9 @@
+template <<
+module {{modulePath}}
+
+go {{goVersion}}
+
+require (
+
+)
+>>

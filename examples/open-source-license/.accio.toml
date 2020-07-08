@@ -1,0 +1,16 @@
+help="""
+Generator of an open-source license
+"""
+
+[prompts.license]
+type="choice"
+message="Select a license:"
+options=["MIT License", "Apache License 2.0", "GNU GPLv3"]
+
+[prompts.copyrightHolder]
+type="input"
+message="Enter your full name as copyright holder:"
+
+[prompts.copyrightYear]
+type="integer"
+message="Enter the year of the copyright license:"
