@@ -11,27 +11,24 @@ Accio is a flexible framework for boilerplate code generators. It is designed wi
 
 ## Installation
 ### Pre-compiled binaries
-*Homebrew*:
-
+**Homebrew**:  
 `brew install g1ntas/tap/accio`
 
-*Shell script*:
-
+**Shell script**:  
 `curl -sfL https://raw.githubusercontent.com/g1ntas/accio/master/install.sh | sh`
 
-*Manually*:
-
- Download the pre-compiled binaries from [releases page](https://github.com/g1ntas/accio/releases).
+**Manually**:  
+Download the pre-compiled binaries from [releases page](https://github.com/g1ntas/accio/releases).
 
 ### Building from source
 To build a binary from the source code, you need to have [Go](https://golang.org/) installed first.
 
-*Steps*:
+**Steps**:
 1. Clone repository: `git clone https://github.com/g1ntas/accio`
 2. Build: `go build`
 3. Run `./accio` to verify if it works
 
-*NOTE*: 
+**NOTE**:  
 While it’s the easiest way to build a binary, it doesn’t include any versioning information. For best results, use [Mage](https://magefile.org/) with `mage build`.
 
 ## Quickstart

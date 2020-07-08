@@ -4,7 +4,7 @@
 
 Starlark is a dialect of Python which was created by [Bazel](https://bazel.build/) and is used as a scripting language for blueprints. Specification of the language can be found at [google/starlark-go/spec.md](https://github.com/google/starlark-go/blob/master/doc/spec.md).
 
-*NOTE*:
+**NOTE**:  
 * Sets (data type) are not supported
 * All scripts within tags must be indented
 
@@ -32,7 +32,7 @@ variable -name="inlineName" << "John Doe" >>
 ## Mustache
 [Mustache](http://mustache.github.io/) is a logic-less templating engine and is used as a templating engine for blueprints. Documentation can be found at [Mustache(5)](http://mustache.github.io/mustache.5.html).
 
-*NOTE:* lambdas are not supported.
+**NOTE:** lambdas are not supported.
 
 ### Context variables
 In Mustache templates, context variables can be accessed directly:

@@ -13,7 +13,7 @@ Documentation
 ## prompts
 Defines what data will be prompted when a generator is executed. Prompts are defined as nested [tables/maps](https://github.com/toml-lang/toml#user-content-table). The key within the table represents the name of the data entry, which will be used in generator templates. The value should contain a collection of options describing the behavior of the prompt. The order of prompts is not taken into account and may appear in a different order than in the configuration file.
 
-*NOTE:* Prompt key should be no longer than 64 characters, must start with a letter or underscore and consist only of digits, letters, or underscores.
+**NOTE:** Prompt key should be no longer than 64 characters, must start with a letter or underscore and consist only of digits, letters, or underscores.
 
 ### Prompt options
 
@@ -68,7 +68,7 @@ message="Do you have a driving license?"
 #### choice
 Prompts to choose a single option from a pre-defined options list. 
 
-*Additional prompt options:*
+**Additional prompt options:**  
 ##### options (required)
 Defines a list of available choices. Only string values are supported, using any other data type will return an error.  Internally, returns selected string value.
 
@@ -82,7 +82,7 @@ options=["Amsterdam", "Vilnius"]
 #### multi-choice
 Prompts to choose multiple options from a pre-defined options list.
 
-*Additional prompt options:*
+**Additional prompt options:**  
 ##### options (required)
 Defines a list of available choices. Only string values are supported, using any other data type will return an error.  Internally, returns a list of selected string values.
 
