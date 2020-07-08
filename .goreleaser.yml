@@ -7,7 +7,7 @@ before:
 builds:
 - env:
     - CGO_ENABLED=0
-  main: ./cmd/accio/main.go
+  main: ./cmd/accio
   ldflags:
     - '-s -w -X main.buildTag={{.Version}} -X main.buildCommit={{.Commit}} -X main.buildDate={{.Date}}'
   goos:
