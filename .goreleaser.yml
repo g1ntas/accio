@@ -1,0 +1,71 @@
+project_name: 'accio'
+env:
+  - GO111MODULE=on
+before:
+  hooks:
+    - go mod download
+builds:
+- env:
+    - CGO_ENABLED=0
+  main: ./cmd/accio/main.go
+  ldflags:
+    - '-s -w -X main.buildTag={{.Version}} -X main.buildCommit={{.Commit}} -X main.buildDate={{.Date}}'
+  goos:
+    - darwin
+    - linux
+    - windows
+    - freebsd
+    - netbsd
+    - openbsd
+    - dragonfly
+  goarch:
+    - amd64
+    - 386
+    - arm
+    - arm64
+  goarm:
+    - 7
+checksum:
+  name_template: '{{ .ProjectName }}_checksums.txt'
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^build:'
+      - 'Merge pull request'
+      - 'Merge branch'
+
+archives:
+- name_template: "{{.ProjectName}}_{{.Version}}_{{.Os}}-{{.Arch}}"
+  replacements:
+    amd64: 64bit
+    386: 32bit
+    arm: ARM
+    arm64: ARM64
+    darwin: macOS
+    linux: Linux
+    windows: Windows
+    openbsd: OpenBSD
+    netbsd: NetBSD
+    freebsd: FreeBSD
+    dragonfly: DragonFlyBSD
+  format: tar.gz
+  format_overrides:
+    - goos: windows
+      format: zip
+
+brews:
+- github:
+    owner: g1ntas
+    name: homebrew-tap
+  folder: Formula
+  homepage:  https://github.com/g1ntas/accio
+  description: Accio is a flexible framework for boilerplate code generators
+  dependencies:
+    - name: go
+    - name: git
+      type: optional
+  test: |
+    system "#{bin}/accio -v"
