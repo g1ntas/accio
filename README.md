@@ -1,4 +1,8 @@
-# Accio
+[![Linux, macOS and Windows Build Status](https://travis-ci.org/g1ntas/accio.svg?branch=master)](https://travis-ci.org/g1ntas/accio)
+[![Go Report Card](https://goreportcard.com/badge/github.com/g1ntas/accio)](https://goreportcard.com/report/github.com/g1ntas/accio)
+[![codecov](https://codecov.io/gh/g1ntas/accio/branch/master/graph/badge.svg)](https://codecov.io/gh/g1ntas/accio)
+
+## About
 Accio is a flexible framework for boilerplate code generators. It is designed with readability in mind because logic-full templates are hard to maintain. Its modular approach to templates makes it easy and fun to work with, and the possibility to script - just powerful enough to handle most edge-cases.
 
 ## Features

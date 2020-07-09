@@ -27,6 +27,9 @@ script:
   - go mod verify
   - mage -v check
 
+after_success:
+  - bash <(curl -s https://codecov.io/bash)
+
 deploy:
   - provider: script
     skip_cleanup: true
