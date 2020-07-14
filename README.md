@@ -29,11 +29,8 @@ To build a binary from the source code, you need to have [Go](https://golang.org
 
 **Steps**:
 1. Clone repository: `git clone https://github.com/g1ntas/accio`
-2. Build: `go build`
+2. Build: `go run mage.go build`
 3. Run `./accio` to verify if it works
-
-**NOTE**:  
-While it’s the easiest way to build a binary, it doesn’t include any versioning information. For best results, use [Mage](https://magefile.org/) with `mage build`.
 
 ## Quickstart
 ### Running generator

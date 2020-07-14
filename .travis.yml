@@ -20,12 +20,11 @@ os:
 
 install:
   - curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.26.0
-  - go get github.com/magefile/mage
 
 script:
   - go mod download
   - go mod verify
-  - mage -v check
+  - go run mage.go -v check
 
 after_success:
   - bash <(curl -s https://codecov.io/bash)
