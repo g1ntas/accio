@@ -18,6 +18,7 @@ import (
 	"github.com/g1ntas/accio/generator"
 	"github.com/g1ntas/accio/generator/blueprint"
 	"github.com/g1ntas/accio/gitgetter"
+	"github.com/g1ntas/accio/internal/fs"
 )
 
 var runCmd = &cobra.Command{
@@ -79,7 +80,8 @@ For git repository URLs:
 			generator.OnSuccess(successHandler(cmd)),
 			generator.IgnoreDir(".git"),
 		)
-		err = runner.Run(gen)
+		treeReader := fs.NewAferoFileTreeReader(env.fs, gen.Dest)
+		err = runner.Run(treeReader)
 		if err != nil {
 			return err
 		}

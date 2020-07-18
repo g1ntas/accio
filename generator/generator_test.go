@@ -3,22 +3,13 @@ package generator
 import (
 	"encoding/json"
 	"github.com/spf13/afero"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"os"
 	"testing"
 )
 
-// fsOpFn performs operation on the given filesystem.
-type fsOpFn func(afero.Fs) error
-
-// assertFn performs test assertion on the given filesystem.
-type assertFn func(*testing.T, afero.Fs)
-
 // blueprintBlueprintMock represents BlueprintParser implementation.
 type blueprintParserMock struct{}
-
-var noOutput = []assertFn{doesntExist("/output")}
 
 var _ BlueprintParser = (*blueprintParserMock)(nil)
 
@@ -32,10 +23,70 @@ func (e *blueprintParserMock) Parse(b []byte) (*blueprint, error) {
 	return tpl, nil
 }
 
+// fileTreeReaderMock implements FileTreeReader for testing.
+type fileTreeReaderMock struct {
+	fs afero.Fs
+}
+
+var _ FileTreeReader = (*fileTreeReaderMock)(nil)
+
+func (r *fileTreeReaderMock) Walk(walkFn func(filepath string, isDir bool, err error) error) error {
+	return afero.Walk(r.fs, "", func(path string, info os.FileInfo, err error) error {
+		return walkFn(path, info.IsDir(), err)
+	})
+}
+
+func (r *fileTreeReaderMock) ReadFile(fpath string) ([]byte, error) {
+	return afero.ReadFile(r.fs, fpath)
+}
+
 const (
 	skipExisting      = true
 	overwriteExisting = false
 )
+
+// fsOpFn performs operation on the given filesystem.
+type fsOpFn func(afero.Fs) error
+
+// assertFn performs test assertion on the given filesystem.
+type assertFn func(*testing.T, afero.Fs)
+
+var noOutput = []assertFn{doesntExist("/output")}
+
+// file creates a file with a specified content at target path.
+func file(filename string, content string) fsOpFn {
+	return func(fs afero.Fs) error {
+		return afero.WriteFile(fs, filename, []byte(content), 0775)
+	}
+}
+
+// dir creates a directory at target path.
+func dir(dirname string) fsOpFn {
+	return func(fs afero.Fs) error {
+		return fs.Mkdir(dirname, 0755)
+	}
+}
+
+// doesntExist asserts that target path doesn't exist.
+func doesntExist(filename string) assertFn {
+	return func(t *testing.T, fs afero.Fs) {
+		exists, err := afero.Exists(fs, filename)
+		require.NoError(t, err)
+		require.Falsef(t, exists, "file %s exists", filename)
+	}
+}
+
+// fileExists asserts if target file exists and contains given content.
+func fileExists(filename string, content string) assertFn {
+	return func(t *testing.T, fs afero.Fs) {
+		b, err := afero.ReadFile(fs, filename)
+		if os.IsNotExist(err) {
+			require.FailNowf(t, "expected file or directory", "file %s doesn't exist", filename)
+		}
+		require.NoError(t, err)
+		require.Equal(t, content, string(b))
+	}
+}
 
 var runnerTests = []struct {
 	name         string
@@ -52,12 +103,6 @@ var runnerTests = []struct {
 	{
 		"ignore directories",
 		[]fsOpFn{dir("/generator/a")},
-		noOutput,
-		skipExisting,
-	},
-	{
-		"ignore symbolic links",
-		[]fsOpFn{symlink("/generator/a")},
 		noOutput,
 		skipExisting,
 	},
@@ -141,66 +186,27 @@ var runnerTests = []struct {
 	},
 }
 
-// file creates a file with a specified content at target path.
-func file(filename string, content string) fsOpFn {
-	return func(fs afero.Fs) error {
-		return afero.WriteFile(fs, filename, []byte(content), 0775)
-	}
-}
-
-// dir creates a directory at target path.
-func dir(dirname string) fsOpFn {
-	return func(fs afero.Fs) error {
-		return fs.Mkdir(dirname, 0755)
-	}
-}
-
-// symlink creates a symlink file at target path.
-func symlink(filename string) fsOpFn {
-	return func(fs afero.Fs) error {
-		return afero.WriteFile(fs, filename, []byte{}, os.ModeSymlink)
-	}
-}
-
-// doesntExist asserts that target path doesn't exist.
-func doesntExist(filename string) assertFn {
-	return func(t *testing.T, fs afero.Fs) {
-		exists, err := afero.Exists(fs, filename)
-		require.NoError(t, err)
-		require.Falsef(t, exists, "file %s exists", filename)
-	}
-}
-
-// fileExists asserts if target file exists and contains given content.
-func fileExists(filename string, content string) assertFn {
-	return func(t *testing.T, fs afero.Fs) {
-		b, err := afero.ReadFile(fs, filename)
-		if os.IsNotExist(err) {
-			require.FailNowf(t, "expected file or directory", "file %s doesn't exist", filename)
-		}
-		require.NoError(t, err)
-		require.Equal(t, content, string(b))
-	}
-}
-
 func TestRunner(t *testing.T) {
-	gen := &Generator{Dest: "/generator"}
 	for _, test := range runnerTests {
 		t.Run(test.name, func(t *testing.T) {
 			fs := afero.Afero{Fs: afero.NewMemMapFs()}
+
 			err := fs.Mkdir("/generator", 0755)
 			require.NoError(t, err)
 
 			// build initial FS structure
 			for _, fsOperation := range test.input {
 				err := fsOperation(fs)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
+
 			runner := NewRunner(fs, &blueprintParserMock{}, "/output")
 			runner.onExists = func(p string) bool {
 				return !test.skipExisting
 			}
-			err = runner.Run(gen)
+
+			fileTree := &fileTreeReaderMock{fs: afero.NewBasePathFs(fs, "/generator")}
+			err = runner.Run(fileTree)
 			require.NoError(t, err)
 
 			// assert final FS structure

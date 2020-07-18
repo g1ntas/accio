@@ -45,12 +45,25 @@ type BlueprintParser interface {
 }
 
 type FileReader interface {
-	ReadFile(name string) ([]byte, error)
+	// ReadFile reads the file from file tree named by filename and returns
+	// the contents.
+	ReadFile(filename string) ([]byte, error)
+}
+
+// FileTreeReader is an abstraction over any system-agnostic
+// file tree. In the case of generator, it provides full structure,
+// that should be scanned, read and generated at the filepath relative
+// to the working directory.
+type FileTreeReader interface {
+	FileReader
+
+	// Walk walks the file tree, calling walkFn for each file or directory
+	// in the tree, including root. All errors that arise visiting files
+	// and directories are filtered by walkFn.
+	Walk(walkFn func(filepath string, isDir bool, err error) error) error
 }
 
 type Filesystem interface {
-	FileReader
-	Walk(root string, walkFn filepath.WalkFunc) error
 	WriteFile(name string, data []byte, perm os.FileMode) error
 	MkdirAll(path string, perm os.FileMode) error
 	Stat(name string) (os.FileInfo, error)
@@ -165,46 +178,42 @@ func NewRunner(fs Filesystem, mp BlueprintParser, dir string, options ...func(*R
 	return r
 }
 
-// Run executes provided generator by walking over each regular file,
-// reading it and writing it at relative path in working directory.
-// If file ends with extension `.accio`, then it's parsed with
+// Run generates all the files from FileTreeReader by walking over
+// each file, reading it and writing it at relative path in working
+// directory. If file ends with extension `.accio`, then it's parsed with
 // BlueprintParser, which returns file's content and additional metadata,
 // like custom filepath, and whether file should be skipped.
-func (r *Runner) Run(generator *Generator) error {
-	return r.fs.Walk(generator.Dest, func(abspath string, info os.FileInfo, err error) error {
+func (r *Runner) Run(ftr FileTreeReader) error {
+	return ftr.Walk(func(fpath string, isDir bool, err error) error {
 		if err != nil {
-			return r.handleError(err, abspath)
-		}
-		relpath, err := filepath.Rel(generator.Dest, abspath)
-		if err != nil {
-			return r.handleError(err, abspath)
+			return r.handleError(err, fpath)
 		}
 		// skip specified files and directories
 		for _, f := range r.ignore {
 			switch {
-			case relpath != f.relpath:
+			case fpath != f.relpath:
 				continue
-			case info.Mode().IsDir() && f.kind.IsDir():
+			case isDir && f.kind.IsDir():
 				return filepath.SkipDir
-			case info.Mode().IsRegular() && f.kind.IsRegular():
+			case !isDir && f.kind.IsRegular():
 				return nil
 			}
 		}
-		// skip non-files
-		if !info.Mode().IsRegular() {
+		// ignore directories
+		if isDir {
 			return nil
 		}
-		body, err := r.fs.ReadFile(abspath)
+		body, err := ftr.ReadFile(fpath)
 		if err != nil {
-			return r.handleError(err, abspath)
+			return r.handleError(err, fpath)
 		}
-		target := filepath.Join(r.writeDir, relpath)
+		target := filepath.Join(r.writeDir, fpath)
 		if hasTemplateExtension(target) {
 			target = target[:len(target)-len(templateExt)] // remove ext
 			tpl, err := r.mp.Parse(body)
 			switch {
 			case err != nil:
-				return r.handleError(err, abspath)
+				return r.handleError(err, fpath)
 			case tpl.Skip:
 				return nil
 			case tpl.Filename != "":
@@ -224,17 +233,17 @@ func (r *Runner) Run(generator *Generator) error {
 			return nil
 		}
 		if err != nil && !os.IsNotExist(err) {
-			return r.handleError(err, abspath)
+			return r.handleError(err, fpath)
 		}
 		err = r.fs.MkdirAll(filepath.Dir(target), 0755)
 		if err != nil {
-			return r.handleError(err, abspath)
+			return r.handleError(err, fpath)
 		}
 		err = r.fs.WriteFile(target, body, 0775)
 		if err != nil {
-			return r.handleError(err, abspath)
+			return r.handleError(err, fpath)
 		}
-		r.onSuccess(abspath, target)
+		r.onSuccess(fpath, target)
 		return nil
 	})
 }
