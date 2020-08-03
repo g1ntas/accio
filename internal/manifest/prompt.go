@@ -1,4 +1,4 @@
-package generator
+package manifest
 
 import (
 	"errors"

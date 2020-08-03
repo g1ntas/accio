@@ -1,25 +1,19 @@
 package main
 
 import (
-	"context"
-	"errors"
 	"fmt"
-	"github.com/hashicorp/go-safetemp"
-	"github.com/spf13/afero"
-	"github.com/spf13/cobra"
-	"io"
-	"io/ioutil"
-	"os"
-	"os/signal"
-	"path/filepath"
-	"strings"
-	"sync"
-
 	"github.com/g1ntas/accio/generator"
 	"github.com/g1ntas/accio/generator/blueprint"
 	"github.com/g1ntas/accio/gitgetter"
 	"github.com/g1ntas/accio/internal/fs"
+	"github.com/g1ntas/accio/internal/manifest"
+	"github.com/spf13/afero"
+	"github.com/spf13/cobra"
+	"os"
+	"strings"
 )
+
+const manifestFilename = ".accio.toml"
 
 var runCmd = &cobra.Command{
 	Use:   "run [generator]",
@@ -32,30 +26,46 @@ Command accepts a single required argument specifying the
 location of the generator. Location can be either a path 
 to a local directory or an URL to a git repository.
 
-For git repository URLs:
-  Conditions:
-  - Git client is required, which must be registered in a 
-    PATH environment variable and be accessible as 'git' 
-    executable;
-  - HTTP, HTTPS, and SSH protocols are supported. 
-    SSH protocol is only limited to username 'git', 
-    e.g. 'git@github.com'.
+Git repository URLs:
+  HTTP, HTTPS, SSH, GIT, and SCP-style Git URLs are 
+  supported. In case, git provider is a known one (github.com,
+  bitbucket.org, gitlab.com, gitea.com), URL can be specified 
+  without scheme and it will be resolved automatically.
+
+  For authentication with credentials, specify username and 
+  password separated by a colon in URL like in the example 
+  below. If git provider supports access tokens, for security
+  reasons, it's recommended to use one with repository read 
+  access, instead of a real password.
+  Example: username:password@github.com/owner/repository.
+
+  For authentication with an SSH access key, SSH format URL 
+  should be used. Access keys are detected by the active 
+  ssh-agent process. If the ssh-agent is not running, an error
+  will be returned. Also, the ssh key must be registered with 
+  an active ssh-agent for it to be detected, if that's not the 
+  case yet, the key can be registered with the following 
+  command: 'ssh-add /path/to/private/key'.
+  Example: git@github.com:owner/repository
 
   Subdirectories are supported and can be specified after 
-  double-slash '//'. In the case of 'github.com' or 
-  'bitbucket.org', only a single slash '/' can be used.
-  
-  Example:
+  double-slash '//'. In the case of know git provider, only a 
+  single slash '/' can be used.
+  Examples:
+  https://host.com/repository//subdirectory
   github.com/g1ntas/accio/examples/open-source-license
+
+  Git references can be specified at the end of the URL as a 
+  hash fragment and have to be valid full git reference. By 
+  default, HEAD reference is used.
+  Examples:
+  github.com/owner/repo#refs/tags/1.0.0
+  github.com/owner/repo#refs/branch/some-branch
+  github.com/owner/repo#HEAD
 `,
 	Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		gen, closer, err := fetchGeneratorFromUrl(args[0])
-		if err != nil {
-			return err
-		}
-		defer closeGracefully(closer)
-		err = gen.ReadConfig(env.fs)
+		treeReader, gen, err := fetchGenerator(args[0])
 		if err != nil {
 			return err
 		}
@@ -79,8 +89,8 @@ For git repository URLs:
 			generator.OnError(errorHandler(cmd)),
 			generator.OnSuccess(successHandler(cmd)),
 			generator.IgnoreDir(".git"),
+			generator.IgnoreFile(manifestFilename),
 		)
-		treeReader := fs.NewAferoFileTreeReader(env.fs, gen.Dest)
 		err = runner.Run(treeReader)
 		if err != nil {
 			return err
@@ -99,30 +109,36 @@ func init() {
 	rootCmd.AddCommand(runCmd)
 }
 
-func fetchGeneratorFromUrl(src string) (*generator.Generator, io.Closer, error) {
-	info, err := env.fs.Stat(src)
-	if err == nil && info.IsDir() {
-		return generator.NewGenerator(src), ioutil.NopCloser(nil), nil
-	}
-	dst, closer, err := safetemp.Dir("", "accio")
+func fetchGenerator(src string) (generator.FileTreeReader, *manifest.Generator, error) {
+	treeReader, err := urlToTreeReader(src)
 	if err != nil {
 		return nil, nil, err
 	}
-	dst = filepath.Join(dst, "tmp") // work around for https://github.com/hashicorp/go-getter/issues/114
-	err = cloneRepo(src, dst)
+	gen, err := readManifest(treeReader)
 	if err != nil {
-		closeGracefully(closer)
 		return nil, nil, err
 	}
-	gen := generator.NewGenerator(dst)
-	return gen, closer, nil
+	return treeReader, gen, nil
 }
 
-func closeGracefully(c io.Closer) {
-	if err := c.Close(); err != nil {
-		printErr(err)
-		os.Exit(1)
+func readManifest(r generator.FileTreeReader) (*manifest.Generator, error) {
+	b, err := r.ReadFile(manifestFilename)
+	if err != nil {
+		return nil, fmt.Errorf("reading manifest: %w", err)
 	}
+	gen, err := manifest.ReadToml(b)
+	if err != nil {
+		return nil, fmt.Errorf("parsing manifest: %w", err)
+	}
+	return gen, nil
+}
+
+func urlToTreeReader(src string) (generator.FileTreeReader, error) {
+	info, err := env.fs.Stat(src)
+	if err == nil && info.IsDir() {
+		return fs.NewAferoFileTreeReader(env.fs, src), nil
+	}
+	return gitgetter.Get(src)
 }
 
 // generatorHelpFunc defines run command's help behaviour.
@@ -134,17 +150,11 @@ func generatorHelpFunc(cmd *cobra.Command, args []string) {
 		cmd.Root().HelpFunc()(cmd, args)
 		return
 	}
-	gen, closer, err := fetchGeneratorFromUrl(args[1])
+	_, gen, err := fetchGenerator(args[1])
 	if err != nil {
 		printErr(err)
 		fmt.Println(cmd.UsageString())
-		return
-	}
-	defer closeGracefully(closer)
-	err = gen.ReadConfig(env.fs)
-	if err != nil {
-		printErr(err)
-		return
+		os.Exit(1)
 	}
 	helpCmd := &cobra.Command{
 		Use:   args[1],
@@ -211,7 +221,7 @@ func workingDir(cmd *cobra.Command) (string, error) {
 	return dir, nil
 }
 
-func buildGeneratorHelp(gen *generator.Generator) string {
+func buildGeneratorHelp(gen *manifest.Generator) string {
 	help := strings.TrimSpace(gen.Help)
 	if len(gen.Prompts) == 0 {
 		return help
@@ -228,38 +238,4 @@ func buildGeneratorHelp(gen *generator.Generator) string {
 		help += "\n\n"
 	}
 	return strings.TrimSpace(help)
-}
-
-func cloneRepo(src, dst string) error {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	client := &gitgetter.Client{Pwd: cwd}
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	errChan := make(chan error, 2)
-	go func() {
-		defer wg.Done()
-		defer cancel()
-		if err := client.CloneRepository(ctx, src, dst); err != nil {
-			errChan <- err
-		}
-	}()
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
-	select {
-	case sig := <-c:
-		signal.Reset(os.Interrupt)
-		cancel()
-		wg.Wait()
-		return errors.New(sig.String())
-	case <-ctx.Done():
-		wg.Wait()
-	case err := <-errChan:
-		wg.Wait()
-		return err
-	}
-	return nil
 }

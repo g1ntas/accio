@@ -1,21 +1,49 @@
-package generator
+package manifest
 
 import (
 	"fmt"
 	"github.com/BurntSushi/toml"
+	"sort"
 	"unicode"
 )
 
-func (g *Generator) ReadConfig(r FileReader) error {
-	b, err := r.ReadFile(g.manifestPath())
-	if err != nil {
-		return err
+type Generator struct {
+	Help    string    `toml:"help"`
+	Prompts PromptMap `toml:"prompts"`
+}
+
+func NewGenerator() *Generator {
+	return &Generator{
+		Prompts: make(PromptMap),
 	}
-	err = toml.Unmarshal(b, &g)
-	if err != nil {
-		return err
+}
+
+func (g *Generator) PromptAll(prompter Prompter) (map[string]interface{}, error) {
+	data := make(map[string]interface{})
+	// sort prompts by keys, so they always appear in the same order
+	keys, i := make([]string, len(g.Prompts)), 0
+	for k := range g.Prompts {
+		keys[i] = k
+		i++
 	}
-	return nil
+	sort.Strings(keys)
+	for _, k := range keys {
+		val, err := g.Prompts[k].Prompt(prompter)
+		if err != nil {
+			return map[string]interface{}{}, err
+		}
+		data[k] = val
+	}
+	return data, nil
+}
+
+func ReadToml(b []byte) (*Generator, error) {
+	g := NewGenerator()
+	err := toml.Unmarshal(b, &g)
+	if err != nil {
+		return nil, err
+	}
+	return g, nil
 }
 
 func (m PromptMap) UnmarshalTOML(data interface{}) error {

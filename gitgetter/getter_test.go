@@ -1,48 +1,131 @@
 package gitgetter
 
 import (
+	"errors"
+	"github.com/go-git/go-billy/v5"
+	"github.com/go-git/go-billy/v5/memfs"
+	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/storage"
 	"github.com/stretchr/testify/require"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
-var gitSchemeRemoverTests = []struct {
-	name        string
-	url         string
-	returnedUrl string
-}{
-	{"github with https", "https://github.com/test", "github.com/test"},
-	{"github with http", "http://github.com/test", "github.com/test"},
-	{"github with www and http", "http://www.github.com/test", "github.com/test"},
-	{"github with www and https", "https://www.github.com/test", "github.com/test"},
-	{"github without scheme", "github.com/test", "github.com/test"},
-
-	{"bitbucket with https", "https://bitbucket.org/test", "bitbucket.org/test"},
-	{"bitbucket with http", "http://bitbucket.org/test", "bitbucket.org/test"},
-	{"bitbucket with www and http", "http://www.bitbucket.org/test", "bitbucket.org/test"},
-	{"bitbucket with www and https", "https://www.bitbucket.org/test", "bitbucket.org/test"},
-	{"bitbucket without scheme", "bitbucket.org/test", "bitbucket.org/test"},
-
-	{"unknown url", "http://unknown.url", "http://unknown.url"},
-	{"empty url", "", ""},
-}
-
-func TestGitSchemeRemover(t *testing.T) {
-	for _, test := range gitSchemeRemoverTests {
-		t.Run(test.name, func(t *testing.T) {
-			require.Equal(t, test.returnedUrl, removeSchemeForGitServiceUrl(test.url))
-		})
+func writeFile(fs billy.Filesystem, filename string, data []byte) error {
+	f, err := fs.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0777)
+	if err != nil {
+		return err
 	}
+	_, err = f.Write(data)
+	if err1 := f.Close(); err == nil {
+		err = err1
+	}
+	return err
 }
 
-func TestForcedGitDetectorSuccess(t *testing.T) {
-	d := new(ForcedGitDetector)
-	url, ok, _ := d.Detect("something", "")
-	require.True(t, ok)
-	require.Equal(t, "git::something", url)
+func TestReadFile(t *testing.T) {
+	treeReader := FileTreeReader{fs: memfs.New()}
+	content := []byte("test")
+	err := writeFile(treeReader.fs, "/test.txt", content)
+	require.NoError(t, err)
+
+	b, err := treeReader.ReadFile("test.txt")
+	require.NoError(t, err)
+	require.Equal(t, b, content)
 }
 
-func TestForcedGitDetectorWhenEmpty(t *testing.T) {
-	d := new(ForcedGitDetector)
-	_, ok, _ := d.Detect("", "")
-	require.False(t, ok)
+type file struct {
+	path  string
+	isDir bool
+}
+
+func TestWalk(t *testing.T) {
+	treeReader := FileTreeReader{fs: memfs.New()}
+	err := writeFile(treeReader.fs, "/file.txt", []byte{})
+	require.NoError(t, err)
+	err = writeFile(treeReader.fs, "/dir/file.txt", []byte{})
+	require.NoError(t, err)
+
+	visited := make([]file, 0, 4)
+	err = treeReader.Walk(func(filepath string, isDir bool, err error) error {
+		visited = append(visited, file{filepath, isDir})
+		return nil
+	})
+	require.NoError(t, err)
+
+	require.Len(t, visited, 4)
+	require.Contains(t, visited, file{"/", true})
+	require.Contains(t, visited, file{"/dir", true})
+	require.Contains(t, visited, file{"/file.txt", false})
+	require.Contains(t, visited, file{"/dir/file.txt", false})
+}
+
+func TestWalkSkipDir(t *testing.T) {
+	treeReader := FileTreeReader{fs: memfs.New()}
+	err := writeFile(treeReader.fs, "/file.txt", []byte{})
+	require.NoError(t, err)
+
+	err = treeReader.Walk(func(fpath string, isDir bool, err error) error {
+		if isDir {
+			return filepath.SkipDir
+		}
+		require.Fail(t, "directory not skipped", "visited the file %q in the skipped directory", fpath)
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+func TestWalkError(t *testing.T) {
+	treeReader := FileTreeReader{fs: memfs.New()}
+	err := writeFile(treeReader.fs, "/file.txt", []byte{})
+	require.NoError(t, err)
+
+	err = treeReader.Walk(func(fpath string, isDir bool, err error) error {
+		if fpath != "/" {
+			return errors.New("test walk")
+		}
+		return nil
+	})
+	require.EqualError(t, err, "test walk")
+}
+
+func TestGetter(t *testing.T) {
+	var options *git.CloneOptions
+	clone = func(s storage.Storer, worktree billy.Filesystem, o *git.CloneOptions) (*git.Repository, error) {
+		options = o
+
+		err := writeFile(worktree, "/a.txt", []byte{})
+		require.NoError(t, err)
+		err = writeFile(worktree, "/subdir/b.txt", []byte{})
+		require.NoError(t, err)
+		return nil, nil
+	}
+
+	t.Run("Head ref by default", func(t *testing.T) {
+		_, err := Get("http://test.com/")
+		require.NoError(t, err)
+		require.Equal(t, plumbing.HEAD, options.ReferenceName)
+	})
+
+	t.Run("Custom reference", func(t *testing.T) {
+		_, err := Get("http://test.com#refs/tags/1.0")
+		require.NoError(t, err)
+		require.Equal(t, "refs/tags/1.0", string(options.ReferenceName))
+	})
+
+	t.Run("Subdirectory", func(t *testing.T) {
+		r, err := Get("http://test.com//subdir")
+		require.NoError(t, err)
+
+		visited := make([]string, 0, 2)
+		err = r.Walk(func(fpath string, isDir bool, err error) error {
+			visited = append(visited, fpath)
+			return nil
+		})
+		require.NoError(t, err)
+
+		require.Equal(t, []string{"/", "/b.txt"}, visited)
+	})
 }

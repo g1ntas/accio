@@ -1,4 +1,4 @@
-package generator
+package manifest
 
 import (
 	"github.com/stretchr/testify/require"

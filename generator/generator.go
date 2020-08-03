@@ -3,22 +3,20 @@ package generator
 import (
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
-	"sort"
 	"strings"
 )
 
+const templateExt = ".accio"
+
 const (
-	manifestFilename = ".accio.toml"
-	templateExt      = ".accio"
+	fileRegular fileType = iota
+	fileDir
 )
 
-type Generator struct {
-	Dest    string
-	Help    string    `toml:"help"`
-	Prompts PromptMap `toml:"prompts"`
-}
+type fileType uint
+
+type OptionFn func(*Runner)
 
 // OnExistsFn handles files that already exist at target path.
 // Return true to overwrite file or false to skip it.
@@ -44,18 +42,14 @@ type BlueprintParser interface {
 	Parse(b []byte) (*blueprint, error)
 }
 
-type FileReader interface {
-	// ReadFile reads the file from file tree named by filename and returns
-	// the contents.
-	ReadFile(filename string) ([]byte, error)
-}
-
 // FileTreeReader is an abstraction over any system-agnostic
 // file tree. In the case of generator, it provides full structure,
 // that should be scanned, read and generated at the filepath relative
 // to the working directory.
 type FileTreeReader interface {
-	FileReader
+	// ReadFile reads the file from file tree named by filename and returns
+	// the contents.
+	ReadFile(filename string) ([]byte, error)
 
 	// Walk walks the file tree, calling walkFn for each file or directory
 	// in the tree, including root. All errors that arise visiting files
@@ -67,12 +61,6 @@ type Filesystem interface {
 	WriteFile(name string, data []byte, perm os.FileMode) error
 	MkdirAll(path string, perm os.FileMode) error
 	Stat(name string) (os.FileInfo, error)
-}
-
-// relFile represents file relative to generator's root directory.
-type relFile struct {
-	relpath string
-	kind    os.FileMode
 }
 
 type RunError struct {
@@ -88,64 +76,36 @@ func (e *RunError) Unwrap() error {
 	return e.Err
 }
 
-func IgnoreFile(p string) func(r *Runner) {
+func IgnoreFile(p string) OptionFn {
+	p = normalizePath(p)
 	return func(r *Runner) {
-		r.ignore = append(r.ignore, &relFile{p, os.ModePerm})
+		r.ignore[p] = fileRegular
 	}
 }
 
-func IgnoreDir(p string) func(r *Runner) {
+func IgnoreDir(p string) OptionFn {
+	p = normalizePath(p)
 	return func(r *Runner) {
-		r.ignore = append(r.ignore, &relFile{p, os.ModeDir})
+		r.ignore[p] = fileDir
 	}
 }
 
-func OnFileExists(fn OnExistsFn) func(r *Runner) {
+func OnFileExists(fn OnExistsFn) OptionFn {
 	return func(r *Runner) {
 		r.onExists = fn
 	}
 }
 
-func OnError(fn OnErrorFn) func(r *Runner) {
+func OnError(fn OnErrorFn) OptionFn {
 	return func(r *Runner) {
 		r.onError = fn
 	}
 }
 
-func OnSuccess(fn OnSuccessFn) func(r *Runner) {
+func OnSuccess(fn OnSuccessFn) OptionFn {
 	return func(r *Runner) {
 		r.onSuccess = fn
 	}
-}
-
-func NewGenerator(dir string) *Generator {
-	return &Generator{
-		Dest:    dir,
-		Prompts: make(PromptMap),
-	}
-}
-
-func (g *Generator) PromptAll(prompter Prompter) (map[string]interface{}, error) {
-	data := make(map[string]interface{})
-	// sort prompts by keys, so they always appear in the same order
-	keys, i := make([]string, len(g.Prompts)), 0
-	for k := range g.Prompts {
-		keys[i] = k
-		i++
-	}
-	sort.Strings(keys)
-	for _, k := range keys {
-		val, err := g.Prompts[k].Prompt(prompter)
-		if err != nil {
-			return map[string]interface{}{}, err
-		}
-		data[k] = val
-	}
-	return data, nil
-}
-
-func (g *Generator) manifestPath() string {
-	return path.Join(g.Dest, manifestFilename)
 }
 
 type Runner struct {
@@ -155,14 +115,16 @@ type Runner struct {
 	onExists  OnExistsFn
 	onError   OnErrorFn
 	onSuccess OnSuccessFn
-	ignore    []*relFile // collection of files to ignore during run
+	// ignore defines files to ignore during run, where key is a filepath within generator's structure
+	ignore map[string]fileType
 }
 
-func NewRunner(fs Filesystem, mp BlueprintParser, dir string, options ...func(*Runner)) *Runner {
+func NewRunner(fs Filesystem, mp BlueprintParser, dir string, options ...OptionFn) *Runner {
 	r := &Runner{
 		fs:       fs,
 		mp:       mp,
 		writeDir: dir,
+		ignore:   make(map[string]fileType),
 		onExists: func(_ string) bool {
 			return false
 		},
@@ -171,7 +133,6 @@ func NewRunner(fs Filesystem, mp BlueprintParser, dir string, options ...func(*R
 		},
 		onSuccess: func(_, _ string) {},
 	}
-	IgnoreFile(manifestFilename)(r)
 	for _, option := range options {
 		option(r)
 	}
@@ -188,18 +149,17 @@ func (r *Runner) Run(ftr FileTreeReader) error {
 		if err != nil {
 			return r.handleError(err, fpath)
 		}
+		fpath = normalizePath(fpath)
 		// skip specified files and directories
-		for _, f := range r.ignore {
+		if ignoredFile, ok := r.ignore[fpath]; ok {
 			switch {
-			case fpath != f.relpath:
-				continue
-			case isDir && f.kind.IsDir():
+			case isDir && ignoredFile == fileDir:
 				return filepath.SkipDir
-			case !isDir && f.kind.IsRegular():
+			case !isDir && ignoredFile == fileRegular:
 				return nil
 			}
 		}
-		// ignore directories
+		// do nothing with directories
 		if isDir {
 			return nil
 		}
@@ -273,4 +233,15 @@ func joinWithinRoot(root, relpath string) string {
 		parts = parts[1:]
 	}
 	return filepath.Join(root, strings.Join(parts, sep))
+}
+
+// normalizePath cleans up the path and normalizes it so it can
+// be compared with other paths referring to the same file but
+// containing different path format.
+func normalizePath(p string) string {
+	p = filepath.Clean(p)
+	if len(p) > 0 && p[0] == filepath.Separator {
+		return p[1:]
+	}
+	return p
 }

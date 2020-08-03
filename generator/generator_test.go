@@ -40,16 +40,15 @@ func (r *fileTreeReaderMock) ReadFile(fpath string) ([]byte, error) {
 	return afero.ReadFile(r.fs, fpath)
 }
 
-const (
-	skipExisting      = true
-	overwriteExisting = false
-)
-
 // fsOpFn performs operation on the given filesystem.
 type fsOpFn func(afero.Fs) error
 
 // assertFn performs test assertion on the given filesystem.
 type assertFn func(*testing.T, afero.Fs)
+
+var overwriteExisting = OnFileExists(func(p string) bool {
+	return true
+})
 
 var noOutput = []assertFn{doesntExist("/output")}
 
@@ -89,100 +88,106 @@ func fileExists(filename string, content string) assertFn {
 }
 
 var runnerTests = []struct {
-	name         string
-	input        []fsOpFn   // sequence of FS operations to prepare initial generator directory structure
-	output       []assertFn // sequence of test assertions to perform after runner completes
-	skipExisting bool
+	name    string
+	input   []fsOpFn   // sequence of FS operations to prepare initial generator directory structure
+	output  []assertFn // sequence of test assertions to perform after runner completes
+	options []OptionFn
 }{
 	{
 		"no files",
 		[]fsOpFn{},
 		noOutput,
-		skipExisting,
+		[]OptionFn{},
 	},
 	{
 		"ignore directories",
 		[]fsOpFn{dir("/generator/a")},
 		noOutput,
-		skipExisting,
-	},
-	{
-		"ignore manifest",
-		[]fsOpFn{file("/generator/.accio.toml", "")},
-		noOutput,
-		skipExisting,
+		[]OptionFn{},
 	},
 	{
 		"write static file",
 		[]fsOpFn{file("/generator/a.txt", "test")},
 		[]assertFn{fileExists("/output/a.txt", "test")},
-		skipExisting,
+		[]OptionFn{},
 	},
 	{
 		"write multiple files",
 		[]fsOpFn{file("/generator/a.txt", "file1"), file("/generator/b.txt", "file2")},
 		[]assertFn{fileExists("/output/a.txt", "file1"), fileExists("/output/b.txt", "file2")},
-		skipExisting,
+		[]OptionFn{},
 	},
 	{
 		"write nested files",
 		[]fsOpFn{dir("/generator/abc"), file("/generator/abc/test.txt", "file")},
 		[]assertFn{fileExists("/output/abc/test.txt", "file")},
-		skipExisting,
+		[]OptionFn{},
 	},
 	{
 		"write blueprint file",
 		[]fsOpFn{file("/generator/test.txt.accio", `{"body": "test"}`)},
 		[]assertFn{fileExists("/output/test.txt", "test")},
-		skipExisting,
+		[]OptionFn{},
 	},
 	{
 		"blueprint | skip file",
 		[]fsOpFn{file("/generator/test.txt.accio", `{"skip": true}`)},
 		noOutput,
-		skipExisting,
+		[]OptionFn{},
 	},
 	{
 		"blueprint | custom filename",
 		[]fsOpFn{file("/generator/test.txt.accio", `{"filename": "custom.txt", "body": "---"}`)},
 		[]assertFn{fileExists("/output/custom.txt", "---")},
-		skipExisting,
+		[]OptionFn{},
 	},
 	{
 		"blueprint | nested custom filename",
 		[]fsOpFn{file("/generator/test.txt.accio", `{"filename": "dir/custom.txt"}`)},
 		[]assertFn{fileExists("/output/dir/custom.txt", "")},
-		skipExisting,
+		[]OptionFn{},
 	},
 	{
 		"blueprint | append static name if filename is directory",
 		[]fsOpFn{dir("/output/abc"), file("/generator/test.txt.accio", `{"filename": "abc"}`)},
 		[]assertFn{fileExists("/output/abc/test.txt", "")},
-		skipExisting,
+		[]OptionFn{},
 	},
 	{
 		"blueprint | don't write outside root",
 		[]fsOpFn{file("/generator/test.txt.accio", `{"filename": "../../../custom.txt"}`)},
 		[]assertFn{fileExists("/output/custom.txt", "")},
-		skipExisting,
+		[]OptionFn{},
 	},
 	{
 		"blueprint | write to root",
 		[]fsOpFn{file("/generator/abc/test.txt.accio", `{"filename": "custom.txt"}`)},
 		[]assertFn{fileExists("/output/custom.txt", "")},
-		skipExisting,
+		[]OptionFn{},
 	},
 	{
 		"overwrite if file exists",
 		[]fsOpFn{file("/generator/test.txt", "new"), file("/output/test.txt", "old")},
 		[]assertFn{fileExists("/output/test.txt", "new")},
-		overwriteExisting,
+		[]OptionFn{overwriteExisting},
 	},
 	{
-		"skip if file exists",
+		"skip if file exists by default",
 		[]fsOpFn{file("/generator/test.txt", "new"), file("/output/test.txt", "old")},
 		[]assertFn{fileExists("/output/test.txt", "old")},
-		skipExisting,
+		[]OptionFn{},
+	},
+	{
+		"ignore file",
+		[]fsOpFn{file("/generator/ignore.txt", ""), file("/generator/file.txt", "")},
+		[]assertFn{doesntExist("/output/ignore.txt"), fileExists("/output/file.txt", "")},
+		[]OptionFn{IgnoreFile("ignore.txt")},
+	},
+	{
+		"ignore directory",
+		[]fsOpFn{file("/generator/ignore/a.txt", ""), file("/generator/ignore/b.txt", "")},
+		[]assertFn{doesntExist("/output/ignore/a.txt"), doesntExist("/output/ignore/b.txt")},
+		[]OptionFn{IgnoreDir("ignore")},
 	},
 }
 
@@ -200,10 +205,12 @@ func TestRunner(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			runner := NewRunner(fs, &blueprintParserMock{}, "/output")
-			runner.onExists = func(p string) bool {
-				return !test.skipExisting
-			}
+			runner := NewRunner(
+				fs,
+				&blueprintParserMock{},
+				"/output",
+				test.options...,
+			)
 
 			fileTree := &fileTreeReaderMock{fs: afero.NewBasePathFs(fs, "/generator")}
 			err = runner.Run(fileTree)
