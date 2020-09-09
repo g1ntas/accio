@@ -14,6 +14,11 @@ const (
 	newline  = "\n"
 )
 
+type nopLogger struct{}
+
+func (l nopLogger) Debug(_ ...interface{}) {
+}
+
 var parseTests = []struct {
 	name      string
 	input     string
@@ -368,7 +373,7 @@ var parseTests = []struct {
 func TestParsing(t *testing.T) {
 	for _, test := range parseTests {
 		t.Run(test.name, func(t *testing.T) {
-			p, err := NewParser(test.data)
+			p, err := NewParser(test.data, &nopLogger{})
 			require.NoError(t, err)
 
 			bp, err := p.Parse([]byte(test.input))
@@ -401,7 +406,7 @@ var errorTests = []struct {
 func TestErrors(t *testing.T) {
 	for _, test := range errorTests {
 		t.Run(test.name, func(t *testing.T) {
-			p, err := NewParser(data{})
+			p, err := NewParser(data{}, &nopLogger{})
 			require.NoError(t, err)
 
 			_, err = p.Parse([]byte(test.input))
@@ -416,7 +421,7 @@ func TestErrors(t *testing.T) {
 }
 
 func TestParsingDoesntModifyContext(t *testing.T) {
-	p, err := NewParser(data{"var1": "test"})
+	p, err := NewParser(data{"var1": "test"}, &nopLogger{})
 	require.NoError(t, err)
 
 	tpl := `` +

@@ -15,6 +15,11 @@ import (
 
 var npath = filepath.FromSlash
 
+type nopLogger struct{}
+
+func (l nopLogger) Debug(_ ...interface{}) {
+}
+
 func writeFile(fs billy.Filesystem, filename string, data []byte) error {
 	f, err := fs.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0777)
 	if err != nil {
@@ -57,12 +62,11 @@ func TestWalk(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.Equal(t, visited, []file{
-		{npath("/"), true},
-		{npath("/file.txt"), false},
-		{npath("/dir"), true},
-		{npath("/dir/file.txt"), false},
-	})
+	require.Len(t, visited, 4)
+	require.Contains(t, visited, file{npath("/"), true})
+	require.Contains(t, visited, file{npath("/file.txt"), false})
+	require.Contains(t, visited, file{npath("/dir"), true})
+	require.Contains(t, visited, file{npath("/dir/file.txt"), false})
 }
 
 func TestWalkSkipDir(t *testing.T) {
@@ -107,20 +111,22 @@ func TestGetter(t *testing.T) {
 		return nil, nil
 	}
 
+	g := New(&nopLogger{})
+
 	t.Run("Head ref by default", func(t *testing.T) {
-		_, err := Get("http://test.com/")
+		_, err := g.Get("http://test.com/")
 		require.NoError(t, err)
 		require.Equal(t, plumbing.HEAD, options.ReferenceName)
 	})
 
 	t.Run("Custom reference", func(t *testing.T) {
-		_, err := Get("http://test.com#refs/tags/1.0")
+		_, err := g.Get("http://test.com#refs/tags/1.0")
 		require.NoError(t, err)
 		require.Equal(t, "refs/tags/1.0", string(options.ReferenceName))
 	})
 
 	t.Run("Subdirectory", func(t *testing.T) {
-		r, err := Get("http://test.com//subdir")
+		r, err := g.Get("http://test.com//subdir")
 		require.NoError(t, err)
 
 		visited := make([]string, 0, 2)
@@ -130,6 +136,8 @@ func TestGetter(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		require.Equal(t, []string{npath("/"), npath("/b.txt")}, visited)
+		require.Len(t, visited, 2)
+		require.Contains(t, visited, npath("/"))
+		require.Contains(t, visited, npath("/b.txt"))
 	})
 }

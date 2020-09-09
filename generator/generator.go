@@ -63,6 +63,19 @@ type Filesystem interface {
 	Stat(name string) (os.FileInfo, error)
 }
 
+type Logger interface {
+	Debug(v ...interface{})
+	Info(v ...interface{})
+}
+
+type NopLogger struct{}
+
+func (l NopLogger) Debug(_ ...interface{}) {
+}
+
+func (l NopLogger) Info(_ ...interface{}) {
+}
+
 type RunError struct {
 	Err  error
 	Path string
@@ -74,6 +87,16 @@ func (e *RunError) Error() string {
 
 func (e *RunError) Unwrap() error {
 	return e.Err
+}
+
+func WithLogger(l Logger) OptionFn {
+	return func(r *Runner) {
+		r.log = l
+	}
+}
+
+func SkipErrors(r *Runner) {
+	r.skipErrors = true
 }
 
 func IgnoreFile(p string) OptionFn {
@@ -96,42 +119,27 @@ func OnFileExists(fn OnExistsFn) OptionFn {
 	}
 }
 
-func OnError(fn OnErrorFn) OptionFn {
-	return func(r *Runner) {
-		r.onError = fn
-	}
-}
-
-func OnSuccess(fn OnSuccessFn) OptionFn {
-	return func(r *Runner) {
-		r.onSuccess = fn
-	}
-}
-
 type Runner struct {
-	fs        Filesystem
-	mp        BlueprintParser
-	writeDir  string // absolute path to the directory to write generated files
-	onExists  OnExistsFn
-	onError   OnErrorFn
-	onSuccess OnSuccessFn
+	fs         Filesystem
+	bluepr     BlueprintParser
+	log        Logger
+	writeDir   string // absolute path to the directory to write generated files
+	skipErrors bool
+	onExists   OnExistsFn
 	// ignore defines files to ignore during run, where key is a filepath within generator's structure
 	ignore map[string]fileType
 }
 
-func NewRunner(fs Filesystem, mp BlueprintParser, dir string, options ...OptionFn) *Runner {
+func NewRunner(fs Filesystem, bp BlueprintParser, dir string, options ...OptionFn) *Runner {
 	r := &Runner{
 		fs:       fs,
-		mp:       mp,
+		bluepr:   bp,
+		log:      NopLogger{},
 		writeDir: dir,
 		ignore:   make(map[string]fileType),
 		onExists: func(_ string) bool {
 			return false
 		},
-		onError: func(_ error) bool {
-			return false
-		},
-		onSuccess: func(_, _ string) {},
 	}
 	for _, option := range options {
 		option(r)
@@ -150,17 +158,21 @@ func (r *Runner) Run(ftr FileTreeReader) error {
 			return r.handleError(err, fpath)
 		}
 		fpath = normalizePath(fpath)
+		r.log.Debug("visiting ", fpath)
 		// skip specified files and directories
 		if ignoredFile, ok := r.ignore[fpath]; ok {
 			switch {
 			case isDir && ignoredFile == fileDir:
+				r.log.Debug("skip directory")
 				return filepath.SkipDir
 			case !isDir && ignoredFile == fileRegular:
+				r.log.Debug("skip file")
 				return nil
 			}
 		}
 		// do nothing with directories
 		if isDir {
+			r.log.Debug("is a directory, do nothing")
 			return nil
 		}
 		body, err := ftr.ReadFile(fpath)
@@ -168,13 +180,16 @@ func (r *Runner) Run(ftr FileTreeReader) error {
 			return r.handleError(err, fpath)
 		}
 		target := filepath.Join(r.writeDir, fpath)
+		r.log.Debug("file will be written at ", target)
 		if hasTemplateExtension(target) {
+			r.log.Debug("file is a blueprint, parsing...")
 			target = target[:len(target)-len(templateExt)] // remove ext
-			tpl, err := r.mp.Parse(body)
+			tpl, err := r.bluepr.Parse(body)
 			switch {
 			case err != nil:
 				return r.handleError(err, fpath)
 			case tpl.Skip:
+				r.log.Debug("blueprint: skipping file...")
 				return nil
 			case tpl.Filename != "":
 				basename := filepath.Base(target)
@@ -184,12 +199,14 @@ func (r *Runner) Run(ftr FileTreeReader) error {
 				if err == nil && stat.IsDir() {
 					target = filepath.Join(target, basename)
 				}
+				r.log.Debug("blueprint: file's write destination changed to ", target)
 			}
 			body = []byte(tpl.Body)
 		}
 		// if file exists, call callback to decide if it should be skipped
 		_, err = r.fs.Stat(target)
 		if err == nil && !r.onExists(target) {
+			r.log.Debug("file already exists, skipping...")
 			return nil
 		}
 		if err != nil && !os.IsNotExist(err) {
@@ -203,14 +220,15 @@ func (r *Runner) Run(ftr FileTreeReader) error {
 		if err != nil {
 			return r.handleError(err, fpath)
 		}
-		r.onSuccess(fpath, target)
+		r.log.Debug("file created at", fpath)
 		return nil
 	})
 }
 
 func (r *Runner) handleError(err error, path string) error {
 	err = &RunError{err, path}
-	if r.onError(err) {
+	if r.skipErrors {
+		r.log.Info("ERROR: ", err.Error(), ". Skipping...")
 		return nil
 	}
 	return err

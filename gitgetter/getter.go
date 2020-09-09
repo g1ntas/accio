@@ -13,6 +13,18 @@ import (
 
 var clone = git.Clone
 
+type Logger interface {
+	Debug(v ...interface{})
+}
+
+type Getter struct {
+	log Logger
+}
+
+func New(l Logger) *Getter {
+	return &Getter{log: l}
+}
+
 // Get clones git repository into in-memory filesystem and returns
 // FileTreeReader with repository source files. An URL can be any
 // valid URL supported by official git client. In case a host is
@@ -32,15 +44,18 @@ var clone = git.Clone
 // http://unknownhost.com/user/repo//subdirectory
 // github.com/user/repo/subdirectory
 // ```
-func Get(repourl string) (*FileTreeReader, error) {
+func (g *Getter) Get(repourl string) (*FileTreeReader, error) {
+	g.log.Debug("requested repository ", repourl)
 	r, err := parseUrl(repourl)
 	if err != nil {
 		return nil, err
 	}
 	ref := plumbing.HEAD
 	if r.ref != "" {
+		g.log.Debug("using reference ", r.ref)
 		ref = plumbing.ReferenceName(r.ref)
 	}
+	g.log.Debug("cloning from ", r.raw)
 	fs := memfs.New()
 	_, err = clone(memory.NewStorage(), fs, &git.CloneOptions{
 		URL:               r.raw,
@@ -54,6 +69,7 @@ func Get(repourl string) (*FileTreeReader, error) {
 		return nil, err
 	}
 	if r.subdir != "" {
+		g.log.Debug("using subdirectory ", r.subdir)
 		fs = chroot.New(fs, r.subdir)
 	}
 	return &FileTreeReader{fs}, nil

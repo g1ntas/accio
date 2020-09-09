@@ -1,11 +1,12 @@
 package main
 
 import (
-	"fmt"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	"os"
 
+	"github.com/g1ntas/accio/gitgetter"
+	"github.com/g1ntas/accio/internal/logger"
 	"github.com/g1ntas/accio/prompter"
 )
 
@@ -15,6 +16,8 @@ var env environment
 type environment struct {
 	fs       afero.Afero
 	prompter *prompter.CLI
+	log      *logger.Logger
+	git      *gitgetter.Getter
 }
 
 // rootCmd represents the base command, which can be executed by running executable without any arguments.
@@ -33,11 +36,19 @@ official project repository at https://github.com/g1ntas/accio.
 `,
 	SilenceUsage:  true,
 	SilenceErrors: true,
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		env.log.Verbose = getBoolFlag(cmd, "verbose")
+	},
 }
 
 func init() {
 	env.fs = afero.Afero{Fs: afero.NewOsFs()}
 	env.prompter = prompter.NewCLIPrompter(os.Stdin, os.Stdout, os.Stderr)
+	env.log = logger.New(os.Stderr, "main")
+	env.git = gitgetter.New(logger.NewFromLogger(env.log, "gitgetter"))
+
+	rootCmd.Flags().BoolP("version", "V", false, "version for accio")
+	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "print debug information")
 }
 
 // main adds all child commands to the root command and sets flags appropriately.
@@ -49,15 +60,11 @@ func main() {
 			os.Exit(1)
 		}
 		printErr(err)
-		fmt.Println(cmd.UsageString())
+		env.log.Info("\n" + cmd.UsageString())
 		os.Exit(1)
 	}
 }
 
 func printErr(e error) {
-	format := "[ERROR] %s\n"
-	_, err := fmt.Fprintf(os.Stderr, format, e.Error())
-	if err != nil {
-		fmt.Printf(format, e.Error())
-	}
+	env.log.Info("ERROR: " + e.Error())
 }

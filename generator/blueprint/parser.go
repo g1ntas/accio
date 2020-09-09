@@ -119,17 +119,23 @@ func evalErr(tag *markup.TagNode, err error) error {
 	return newErr
 }
 
+type Logger interface {
+	Debug(v ...interface{})
+}
+
 type Parser struct {
 	ctx context
 	mp  *markup.Parser
+	log Logger
 }
 
-func NewParser(d map[string]interface{}) (*Parser, error) {
+func NewParser(d map[string]interface{}, log Logger) (*Parser, error) {
 	ctx, err := newContext(d)
 	if err != nil {
 		return nil, err
 	}
-	return &Parser{ctx: ctx}, nil
+	log.Debug("instantiating parser with data: ", d)
+	return &Parser{ctx: ctx, log: log}, nil
 }
 
 // blueprint is an alias for an anonymous struct used in
@@ -197,6 +203,7 @@ func (p *Parser) parseVariable(tag *markup.TagNode) error {
 	if err != nil {
 		return evalErr(tag, err)
 	}
+	p.log.Debug("parsed variable on line ", tag.Line, "   name=", name, ", value=", val.String())
 	p.ctx.vars[name] = val
 	return nil
 }
@@ -213,6 +220,7 @@ func (p *Parser) parseFilename(tag *markup.TagNode) (string, error) {
 	if err != nil {
 		return "", evalErr(tag, err)
 	}
+	p.log.Debug("parsed filename on line ", tag.Line, " with value ", filename)
 	return filename, nil
 }
 
@@ -224,6 +232,7 @@ func (p *Parser) parseSkip(tag *markup.TagNode) (bool, error) {
 	if err != nil {
 		return false, evalErr(tag, err)
 	}
+	p.log.Debug("parsed skipif on line ", tag.Line, " with value ", v.String())
 	return parseBool(v), nil
 }
 
@@ -235,6 +244,7 @@ func (p *Parser) parsePartial(tag *markup.TagNode) error {
 	if isEmpty(name) {
 		return nil
 	}
+	p.log.Debug("parsed partial on line ", tag.Line, " with name ", name)
 	p.ctx.partials[name] = tag.Body.Content
 	return nil
 }
@@ -244,6 +254,7 @@ func (p *Parser) renderTemplate(tag *markup.TagNode) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	p.log.Debug("rendering template on line ", tag.Line, " with data ", data)
 	provider := &mustache.StaticProvider{Partials: p.ctx.partials}
 	var body string
 	if tag.Body != nil {

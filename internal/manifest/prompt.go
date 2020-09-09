@@ -2,6 +2,7 @@ package manifest
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 )
 
@@ -34,6 +35,14 @@ type Prompt interface {
 }
 
 type PromptMap map[string]Prompt
+
+func (m PromptMap) String() string {
+	var str string
+	for k, pr := range m {
+		str += fmt.Sprintf(" %s:%s", k, pr)
+	}
+	return "map[" + str[1:] + "]"
+}
 
 type Base struct {
 	Msg      string

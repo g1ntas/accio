@@ -2,15 +2,16 @@ package main
 
 import (
 	"fmt"
-	"github.com/g1ntas/accio/generator"
-	"github.com/g1ntas/accio/generator/blueprint"
-	"github.com/g1ntas/accio/gitgetter"
-	"github.com/g1ntas/accio/internal/fs"
-	"github.com/g1ntas/accio/internal/manifest"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	"os"
 	"strings"
+
+	"github.com/g1ntas/accio/generator"
+	"github.com/g1ntas/accio/generator/blueprint"
+	"github.com/g1ntas/accio/internal/fs"
+	"github.com/g1ntas/accio/internal/logger"
+	"github.com/g1ntas/accio/internal/manifest"
 )
 
 const manifestFilename = ".accio.toml"
@@ -73,28 +74,31 @@ Git repository URLs:
 		if err != nil {
 			return err
 		}
+		env.log.Debug("working directory: ", writeDir)
 		data, err := gen.PromptAll(env.prompter)
 		if err != nil {
 			return err
 		}
-		parser, err := blueprint.NewParser(data)
+		parser, err := blueprint.NewParser(data, logger.NewFromLogger(env.log, "blueprint"))
 		if err != nil {
 			return err
 		}
-		runner := generator.NewRunner(
-			filesystem(cmd),
-			parser,
-			writeDir,
+		options := []generator.OptionFn{
 			generator.OnFileExists(existingFileHandler(cmd)),
-			generator.OnError(errorHandler(cmd)),
-			generator.OnSuccess(successHandler(cmd)),
 			generator.IgnoreDir(".git"),
 			generator.IgnoreFile(manifestFilename),
-		)
+			generator.WithLogger(logger.NewFromLogger(env.log, "generator")),
+		}
+		if getBoolFlag(cmd, "ignore-errors") {
+			options = append(options, generator.SkipErrors)
+		}
+		runner := generator.NewRunner(filesystem(cmd), parser, writeDir, options...)
+		env.log.Info("Running...")
 		err = runner.Run(treeReader)
 		if err != nil {
 			return err
 		}
+		env.log.Info("Done.")
 		return nil
 	},
 }
@@ -118,6 +122,7 @@ func fetchGenerator(src string) (generator.FileTreeReader, *manifest.Generator, 
 	if err != nil {
 		return nil, nil, err
 	}
+	env.log.Debug("parsed manifest: ", gen)
 	return treeReader, gen, nil
 }
 
@@ -136,9 +141,11 @@ func readManifest(r generator.FileTreeReader) (*manifest.Generator, error) {
 func urlToTreeReader(src string) (generator.FileTreeReader, error) {
 	info, err := env.fs.Stat(src)
 	if err == nil && info.IsDir() {
+		env.log.Debug("reading generator from local directory")
 		return fs.NewAferoFileTreeReader(env.fs, src), nil
 	}
-	return gitgetter.Get(src)
+	env.log.Debug("reading generator from remote git repository")
+	return env.git.Get(src)
 }
 
 // generatorHelpFunc defines run command's help behaviour.
@@ -170,6 +177,7 @@ func generatorHelpFunc(cmd *cobra.Command, args []string) {
 
 func filesystem(cmd *cobra.Command) afero.Afero {
 	if getBoolFlag(cmd, "dry") {
+		env.log.Debug("running in dry mode")
 		roBase := afero.NewReadOnlyFs(env.fs.Fs)
 		ufs := afero.NewCopyOnWriteFs(roBase, afero.NewMemMapFs())
 		return afero.Afero{Fs: ufs}
@@ -181,31 +189,16 @@ func existingFileHandler(cmd *cobra.Command) generator.OnExistsFn {
 	force := getBoolFlag(cmd, "force")
 	return func(path string) bool {
 		if force {
+			env.log.Info("Force overwriting file at ", path)
 			return true
 		}
 		fmt.Printf("File at path %q already exists\n", path)
 		overwrite, err := env.prompter.Confirm("Do you want to overwrite it?", "")
 		if err != nil {
-			fmt.Print(err)
+			env.log.Info("ERROR: ", err)
 			return false
 		}
 		return overwrite
-	}
-}
-
-func errorHandler(cmd *cobra.Command) generator.OnErrorFn {
-	ignoreErr := getBoolFlag(cmd, "ignore-errors")
-	return func(err error) bool {
-		if ignoreErr {
-			printErr(fmt.Errorf("%w. Skipping...", err))
-		}
-		return ignoreErr
-	}
-}
-
-func successHandler(_ *cobra.Command) generator.OnSuccessFn {
-	return func(_, dst string) {
-		fmt.Printf("[SUCCESS] %s created.\n", dst)
 	}
 }
 
