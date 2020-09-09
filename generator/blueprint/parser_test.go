@@ -414,3 +414,19 @@ func TestErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestParsingDoesntModifyContext(t *testing.T) {
+	p, err := NewParser(data{"var1": "test"})
+	require.NoError(t, err)
+
+	tpl := `` +
+		`variable -name="var1" << "changed" >>` + newline +
+		`variable -name="var2" << "new" >>`
+
+	_, err = p.Parse([]byte(tpl))
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, len(p.ctx.vars))
+	assert.Contains(t, p.ctx.vars, "var1")
+	assert.Equal(t, `"test"`, p.ctx.vars["var1"].String())
+}

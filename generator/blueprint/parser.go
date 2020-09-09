@@ -3,12 +3,13 @@ package blueprint
 import (
 	"fmt"
 	"github.com/cbroglie/mustache"
-	"github.com/g1ntas/accio/markup"
 	"go.starlark.net/resolve"
 	"go.starlark.net/starlark"
 	"go.starlark.net/syntax"
 	"strconv"
 	"strings"
+
+	"github.com/g1ntas/accio/markup"
 )
 
 const (
@@ -120,6 +121,7 @@ func evalErr(tag *markup.TagNode, err error) error {
 
 type Parser struct {
 	ctx context
+	mp  *markup.Parser
 }
 
 func NewParser(d map[string]interface{}) (*Parser, error) {
@@ -138,51 +140,52 @@ type blueprint = struct {
 	Skip     bool
 }
 
-func (p *Parser) Parse(b []byte) (*blueprint, error) {
-	parser, err := markup.Parse(string(b), "", "")
+func (p Parser) Parse(b []byte) (*blueprint, error) {
+	var err error
+	p.mp, err = markup.Parse(string(b), "", "")
 	if err != nil {
 		return nil, err
 	}
-	ctx := p.ctx.copy()
-	return parse(parser, &ctx)
+	p.ctx = p.ctx.copy()
+	return p.parse()
 }
 
-func parse(p *markup.Parser, ctx *context) (*blueprint, error) {
+func (p *Parser) parse() (*blueprint, error) {
 	var err error
-	mod := &blueprint{}
-	for _, tag := range p.Tags {
+	bp := &blueprint{}
+	for _, tag := range p.mp.Tags {
 		switch tag.Name {
 		case tagVariable:
-			err = parseVariable(tag, ctx)
+			err = p.parseVariable(tag)
 			if err != nil {
 				return nil, err
 			}
 		case tagFilename:
-			mod.Filename, err = parseFilename(tag, ctx)
+			bp.Filename, err = p.parseFilename(tag)
 			if err != nil {
 				return nil, err
 			}
 		case tagSkip:
-			mod.Skip, err = parseSkip(tag, ctx)
+			bp.Skip, err = p.parseSkip(tag)
 			if err != nil {
 				return nil, err
 			}
 		case tagPartial:
-			err = parsePartial(tag, ctx)
+			err = p.parsePartial(tag)
 			if err != nil {
 				return nil, err
 			}
 		case tagTemplate:
-			mod.Body, err = renderTemplate(tag, ctx)
+			bp.Body, err = p.renderTemplate(tag)
 			if err != nil {
 				return nil, err
 			}
 		}
 	}
-	return mod, nil
+	return bp, nil
 }
 
-func parseVariable(tag *markup.TagNode, ctx *context) error {
+func (p *Parser) parseVariable(tag *markup.TagNode) error {
 	if hasEmptyBody(tag) {
 		return nil
 	}
@@ -190,19 +193,19 @@ func parseVariable(tag *markup.TagNode, ctx *context) error {
 	if isEmpty(name) {
 		return nil
 	}
-	val, err := execute(parseScriptBody(tag), ctx)
+	val, err := execute(parseScriptBody(tag), &p.ctx)
 	if err != nil {
 		return evalErr(tag, err)
 	}
-	ctx.vars[name] = val
+	p.ctx.vars[name] = val
 	return nil
 }
 
-func parseFilename(tag *markup.TagNode, ctx *context) (string, error) {
+func (p *Parser) parseFilename(tag *markup.TagNode) (string, error) {
 	if hasEmptyBody(tag) {
 		return "", nil
 	}
-	v, err := execute(parseScriptBody(tag), ctx)
+	v, err := execute(parseScriptBody(tag), &p.ctx)
 	if err != nil {
 		return "", evalErr(tag, err)
 	}
@@ -213,18 +216,18 @@ func parseFilename(tag *markup.TagNode, ctx *context) (string, error) {
 	return filename, nil
 }
 
-func parseSkip(tag *markup.TagNode, ctx *context) (bool, error) {
+func (p *Parser) parseSkip(tag *markup.TagNode) (bool, error) {
 	if hasEmptyBody(tag) {
 		return false, nil
 	}
-	v, err := execute(parseScriptBody(tag), ctx)
+	v, err := execute(parseScriptBody(tag), &p.ctx)
 	if err != nil {
 		return false, evalErr(tag, err)
 	}
 	return parseBool(v), nil
 }
 
-func parsePartial(tag *markup.TagNode, ctx *context) error {
+func (p *Parser) parsePartial(tag *markup.TagNode) error {
 	if hasEmptyBody(tag) {
 		return nil
 	}
@@ -232,16 +235,16 @@ func parsePartial(tag *markup.TagNode, ctx *context) error {
 	if isEmpty(name) {
 		return nil
 	}
-	ctx.partials[name] = tag.Body.Content
+	p.ctx.partials[name] = tag.Body.Content
 	return nil
 }
 
-func renderTemplate(tag *markup.TagNode, ctx *context) (string, error) {
-	data, err := ctx.varsGoMap()
+func (p *Parser) renderTemplate(tag *markup.TagNode) (string, error) {
+	data, err := p.ctx.varsGoMap()
 	if err != nil {
 		return "", err
 	}
-	provider := &mustache.StaticProvider{Partials: ctx.partials}
+	provider := &mustache.StaticProvider{Partials: p.ctx.partials}
 	var body string
 	if tag.Body != nil {
 		body = tag.Body.Content
