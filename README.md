@@ -54,20 +54,42 @@ Subdirectories are supported as well:
 `accio run github.com/g1ntas/accio/examples/open-source-license`
 
 ### Creating first generator
-1. Create an empty config file `~/example/.accio.toml`
-
-2. Create a template file `~/example/file.txt` with any content:
+Create a config file `~/example/.accio.toml`
+```toml
+# A prompt to show when the generator is executed
+[prompts.filename]
+type="input"
+message="Enter a filename:"
 ```
-Hello, world
+
+Create a template file `~/example/file.txt.accio`:
+```
+# Make a new variable containing the uppercase prompted filename 
+# with Starlark code 
+variable -name="uppercaseFilename" <<
+    return vars['filename'].upper()
+>>
+
+# Rename the file
+filename << 
+    return vars['uppercaseFilename']
+>>
+
+# Use mustache templating engine to output content of the file
+template <<
+Name of this file is: {{uppercaseFilename}}
+>>
 ```
 
 And that's all it takes to create a simple generator - now you can run it:
 ```
 > accio run ~/example
+$ Enter a filename:
+> test.txt
 $ Running...
 $ Done.
 > cat ~/example/TEST.TXT
-$ Hello, world
+$ Name of this file is: TEST.TXT
 ```
 
 To learn about more advanced features needed to write more complex generators, 
